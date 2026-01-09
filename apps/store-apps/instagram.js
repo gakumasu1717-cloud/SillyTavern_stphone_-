@@ -988,10 +988,15 @@ Example output format:
 
     // ========== 렌더링 함수 ==========
     function open() {
+        console.log('📸 [Instagram] open() 호출됨');
         loadPosts();
 
         const $screen = window.STPhone.UI.getContentElement();
-        if (!$screen || !$screen.length) return;
+        console.log('📸 [Instagram] $screen:', $screen, 'length:', $screen?.length);
+        if (!$screen || !$screen.length) {
+            console.error('📸 [Instagram] $screen을 찾을 수 없음!');
+            return;
+        }
         $screen.empty();
 
         const html = `
