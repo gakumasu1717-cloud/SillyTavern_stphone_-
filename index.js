@@ -233,7 +233,44 @@ const EXTENSION_NAME = 'ST Phone System';
             }
         }
 
-        // 히든로그인지 확인
+        const textDiv = node.querySelector('.mes_text');
+        if (!textDiv) return;
+
+        const rawText = textDiv.innerText;
+        
+        // [📩 발신자 -> 수신자]: 메시지 패턴 먼저 처리 (히든로그 체크 전에!)
+        // HTML 엔티티(&gt;)도 처리
+        const phoneMessageRegex = /^\s*\[📩\s*(.+?)\s*(?:->|→|&gt;)\s*(.+?)\s*\]:\s*([\s\S]*)/;
+        const phoneMatch = rawText.match(phoneMessageRegex);
+        
+        if (phoneMatch) {
+            const senderName = phoneMatch[1].trim();
+            const receiverName = phoneMatch[2].trim();
+            let messageText = phoneMatch[3].trim();
+            
+            // Instagram 패턴 제거
+            messageText = messageText.replace(/\[Instagram [^\]]+\][^\n]*/gi, '').trim();
+            
+            if (messageText && window.STPhone?.Apps?.Messages) {
+                const Contacts = window.STPhone.Apps?.Contacts;
+                const Messages = window.STPhone.Apps.Messages;
+                const userName = window.STPhone.Apps?.Settings?.getSettings?.()?.userName || 'User';
+                
+                // 발신자가 유저인지 캐릭터인지 판단
+                const isFromUser = senderName === userName || senderName === receiverName;
+                
+                if (!isFromUser) {
+                    // 캐릭터가 유저에게 보낸 메시지 → 수신
+                    const contact = Contacts?.getContactByName?.(senderName);
+                    if (contact && typeof Messages.receiveMessageSequential === 'function') {
+                        Messages.receiveMessageSequential(contact.id, messageText, senderName, userName);
+                    }
+                }
+            }
+            return; // 📩 패턴 처리 완료
+        }
+
+        // 히든로그인지 확인 (📩 패턴 처리 후에 체크)
         const isHiddenLog = node.classList.contains('st-phone-hidden-log') || node.style.display === 'none';
 
         // 타임스탬프 로직: 히든로그 -> 일반채팅 -> 히든로그 전환 감지
