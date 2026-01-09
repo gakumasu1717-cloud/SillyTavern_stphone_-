@@ -16,6 +16,11 @@ window.STPhone.Apps.Instagram = (function() {
     const STORAGE_KEY = 'stphone_instagram_posts';
     let posts = [];
     let isGeneratingPost = false;
+    
+    // 무한스크롤 설정
+    const POSTS_PER_PAGE = 5;
+    let currentPage = 1;
+    let isLoadingMore = false;
     let currentView = 'feed'; // 'feed', 'create', 'profile'
 
     // ========== CSS 스타일 ==========
@@ -96,6 +101,30 @@ window.STPhone.Apps.Instagram = (function() {
             }
             .st-insta-fab:active {
                 transform: scale(0.95);
+            }
+            
+            /* 더보기 버튼 (무한스크롤) */
+            .st-insta-load-more {
+                padding: 20px;
+                text-align: center;
+                cursor: pointer;
+            }
+            .st-insta-load-more-text {
+                display: inline-block;
+                padding: 10px 24px;
+                background: var(--pt-card-bg, #fff);
+                border: 1px solid var(--pt-border, #dbdbdb);
+                border-radius: 20px;
+                font-size: 14px;
+                color: var(--pt-accent, #0095f6);
+                font-weight: 500;
+                transition: background 0.2s;
+            }
+            .st-insta-load-more:hover .st-insta-load-more-text {
+                background: var(--pt-bg-color, #fafafa);
+            }
+            .st-insta-load-more.loading .st-insta-load-more-text {
+                color: var(--pt-sub-text, #8e8e8e);
             }
             
             /* 스토리 영역 */
@@ -1202,6 +1231,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
     function open() {
         console.log('📸 [Instagram] open() 호출됨');
         loadPosts();
+        currentPage = 1; // 페이지 초기화
 
         const $screen = window.STPhone.UI.getContentElement();
         console.log('📸 [Instagram] $screen:', $screen, 'length:', $screen?.length);
@@ -1250,7 +1280,22 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             `;
         }
 
-        return posts.map(post => renderPost(post)).join('');
+        // 페이지네이션 적용
+        const visiblePosts = posts.slice(0, currentPage * POSTS_PER_PAGE);
+        const hasMore = posts.length > visiblePosts.length;
+        
+        let html = visiblePosts.map(post => renderPost(post)).join('');
+        
+        // 더보기 버튼 또는 로딩 스피너
+        if (hasMore) {
+            html += `
+                <div class="st-insta-load-more" id="st-insta-load-more">
+                    <div class="st-insta-load-more-text">더 보기</div>
+                </div>
+            `;
+        }
+        
+        return html;
     }
 
     function renderPost(post) {
@@ -1386,6 +1431,95 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         });
 
         // 더보기 메뉴
+        $('.st-insta-post-more').off('click').on('click', function() {
+            const postId = parseInt($(this).data('post-id'));
+            showPostMenu(postId);
+        });
+
+        // 무한스크롤 - 더보기 버튼 클릭
+        $('#st-insta-load-more').off('click').on('click', loadMorePosts);
+
+        // 무한스크롤 - 스크롤 감지
+        $('#st-insta-feed').off('scroll').on('scroll', function() {
+            const $feed = $(this);
+            const scrollTop = $feed.scrollTop();
+            const scrollHeight = $feed[0].scrollHeight;
+            const clientHeight = $feed[0].clientHeight;
+            
+            // 스크롤이 하단 근처(100px)에 도달하면 더 로드
+            if (scrollTop + clientHeight >= scrollHeight - 100 && !isLoadingMore) {
+                const hasMore = posts.length > currentPage * POSTS_PER_PAGE;
+                if (hasMore) {
+                    loadMorePosts();
+                }
+            }
+        });
+    }
+
+    // 무한스크롤 - 더 로드
+    function loadMorePosts() {
+        if (isLoadingMore) return;
+        
+        const hasMore = posts.length > currentPage * POSTS_PER_PAGE;
+        if (!hasMore) return;
+        
+        isLoadingMore = true;
+        currentPage++;
+        
+        // 새 게시물들 렌더링
+        const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
+        const endIndex = currentPage * POSTS_PER_PAGE;
+        const newPosts = posts.slice(startIndex, endIndex);
+        
+        // 더보기 버튼 제거
+        $('#st-insta-load-more').remove();
+        
+        // 새 게시물 추가
+        const $feed = $('#st-insta-feed');
+        newPosts.forEach(post => {
+            $feed.append(renderPost(post));
+        });
+        
+        // 더 있으면 더보기 버튼 다시 추가
+        if (posts.length > currentPage * POSTS_PER_PAGE) {
+            $feed.append(`
+                <div class="st-insta-load-more" id="st-insta-load-more">
+                    <div class="st-insta-load-more-text">더 보기</div>
+                </div>
+            `);
+            $('#st-insta-load-more').on('click', loadMorePosts);
+        }
+        
+        // 새로 추가된 게시물에 이벤트 리스너 연결
+        attachNewPostListeners();
+        
+        isLoadingMore = false;
+        console.log(`📸 [Instagram] 페이지 ${currentPage} 로드 완료 (${newPosts.length}개)`);
+    }
+
+    // 새로 추가된 게시물에만 이벤트 연결
+    function attachNewPostListeners() {
+        $('.st-insta-post-action[data-action="like"]').off('click').on('click', function() {
+            const postId = parseInt($(this).data('post-id'));
+            toggleLike(postId);
+        });
+        
+        $('.st-insta-comment-btn').off('click').on('click', function() {
+            const postId = parseInt($(this).data('post-id'));
+            const $input = $(`.st-insta-comment-input input[data-post-id="${postId}"]`);
+            const text = $input.val().trim();
+            if (text) {
+                addUserComment(postId, text);
+                $input.val('');
+                $(this).removeClass('active');
+            }
+        });
+        
+        $('.st-insta-post-author').off('click').on('click', function() {
+            const name = $(this).data('author');
+            openProfile(name);
+        });
+        
         $('.st-insta-post-more').off('click').on('click', function() {
             const postId = parseInt($(this).data('post-id'));
             showPostMenu(postId);
@@ -1633,26 +1767,35 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         if (listenerRegistered) return;
         console.log('📸 [Instagram] initProactivePostListener 시작...');
         
+        let attempts = 0;
+        const maxAttempts = 60; // 30초 후 타임아웃 (500ms * 60)
+        
         const check = setInterval(() => {
+            attempts++;
+            
+            // 타임아웃 체크
+            if (attempts >= maxAttempts) {
+                clearInterval(check);
+                console.warn('📸 [Instagram] ⚠️ SillyTavern context 타임아웃 (30초)');
+                return;
+            }
+            
             const ctx = window.SillyTavern?.getContext?.();
             if (!ctx) {
-                console.log('📸 [Instagram] SillyTavern context 대기 중...');
                 return;
             }
             clearInterval(check);
-            console.log('📸 [Instagram] SillyTavern context 획득!');
+            console.log('📸 [Instagram] SillyTavern context 획득! (시도:', attempts, '번)');
 
             const { eventSource, eventTypes } = ctx;
-            console.log('📸 [Instagram] eventSource:', !!eventSource, 'eventTypes.MESSAGE_RECEIVED:', eventTypes?.MESSAGE_RECEIVED);
             
             if (eventSource && eventTypes?.MESSAGE_RECEIVED && !listenerRegistered) {
                 listenerRegistered = true;
                 eventSource.on(eventTypes.MESSAGE_RECEIVED, (msgId) => {
-                    console.log('📸 [Instagram] MESSAGE_RECEIVED 이벤트 수신! msgId:', msgId);
+                    console.log('📸 [Instagram] MESSAGE_RECEIVED 이벤트 수신!');
                     setTimeout(() => {
                         const c = window.SillyTavern.getContext();
                         const last = c.chat?.[c.chat.length - 1];
-                        console.log('📸 [Instagram] 마지막 메시지:', last?.name, 'is_user:', last?.is_user);
                         if (last && !last.is_user) {
                             checkProactivePost(last.name);
                         }
@@ -1660,7 +1803,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 });
                 console.log('📸 [Instagram] ✅ 프로액티브 포스트 리스너 등록 완료!');
             } else {
-                console.warn('📸 [Instagram] ⚠️ 이벤트 리스너 등록 실패 - eventSource:', !!eventSource, 'MESSAGE_RECEIVED:', !!eventTypes?.MESSAGE_RECEIVED);
+                console.warn('📸 [Instagram] ⚠️ 이벤트 리스너 등록 실패');
             }
         }, 500);
     }
