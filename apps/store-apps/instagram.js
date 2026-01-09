@@ -1061,6 +1061,11 @@ Example output format:
             commentsHtml += '</div>';
         }
 
+        // 이미지가 있을 때만 표시
+        const imageHtml = post.imageUrl 
+            ? `<img class="st-insta-post-image" src="${post.imageUrl}" alt="" loading="lazy">`
+            : '';
+
         return `
             <div class="st-insta-post" data-post-id="${post.id}">
                 <div class="st-insta-post-header">
@@ -1068,7 +1073,7 @@ Example output format:
                     <span class="st-insta-post-author" data-author="${escapeHtml(post.author)}">${escapeHtml(post.author)}</span>
                     <i class="fa-solid fa-ellipsis st-insta-post-more" data-post-id="${post.id}"></i>
                 </div>
-                <img class="st-insta-post-image" src="${post.imageUrl}" alt="" loading="lazy">
+                ${imageHtml}
                 <div class="st-insta-post-actions">
                     <i class="${likeIcon} st-insta-post-action ${likedClass}" data-action="like" data-post-id="${post.id}"></i>
                     <i class="fa-regular fa-comment st-insta-post-action" data-action="comment" data-post-id="${post.id}"></i>
@@ -1185,39 +1190,51 @@ Example output format:
             const caption = $('#st-insta-create-caption').val().trim() || '📸';
             const user = getUserInfo();
 
-            if (!prompt) {
-                toastr.warning('이미지 프롬프트를 입력해주세요');
+            if (!prompt && !caption) {
+                toastr.warning('프롬프트나 캡션 중 하나는 입력해주세요');
                 return;
             }
 
             const $btn = $(this);
             const $preview = $('#st-insta-create-preview');
             
-            // 버튼 비활성화 및 로딩 표시
-            $btn.addClass('disabled').text('생성 중...');
-            $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
+            let imageUrl = null;
 
-            try {
-                // 이미지 생성
-                const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
-                const imageUrl = await generateImage(detailedPrompt);
+            // 프롬프트가 있으면 이미지 생성
+            if (prompt) {
+                $btn.addClass('disabled').text('생성 중...');
+                $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
 
-                if (!imageUrl) {
-                    throw new Error('이미지 생성 실패');
+                try {
+                    const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
+                    imageUrl = await generateImage(detailedPrompt);
+
+                    if (!imageUrl) {
+                        throw new Error('이미지 생성 실패');
+                    }
+
+                    $preview.html(`<img src="${imageUrl}" alt="">`);
+                    toastr.success('이미지 생성 완료! 게시 중...');
+                } catch (e) {
+                    $preview.html('<i class="fa-regular fa-image"></i><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">공유 시 자동 생성됩니다</div>');
+                    $btn.removeClass('disabled').text('공유');
+                    toastr.error('이미지 생성에 실패했습니다');
+                    return;
                 }
+            } else {
+                // 이미지 없이 텍스트만 게시
+                $btn.addClass('disabled').text('게시 중...');
+            }
 
-                $preview.html(`<img src="${imageUrl}" alt="">`);
-                toastr.success('이미지 생성 완료! 게시 중...');
-
-                // 포스트 추가
-                const newPost = {
-                    id: Date.now(),
-                    author: user.name,
-                    authorAvatar: user.avatar,
-                    imageUrl: imageUrl,
-                    caption: caption,
-                    timestamp: Date.now(),
-                    likes: 0,
+            // 포스트 추가
+            const newPost = {
+                id: Date.now(),
+                author: user.name,
+                authorAvatar: user.avatar,
+                imageUrl: imageUrl || '',
+                caption: caption,
+                timestamp: Date.now(),
+                likes: 0,
                     likedByUser: false,
                     comments: [],
                     isUser: true
