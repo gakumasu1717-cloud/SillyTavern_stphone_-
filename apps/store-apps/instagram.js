@@ -24,6 +24,7 @@ window.STPhone.Apps.Instagram = (function() {
                 background: var(--pt-bg-color, #fafafa);
                 color: var(--pt-text-color, #262626);
                 font-family: var(--pt-font, -apple-system, sans-serif);
+                overflow: hidden;
             }
             .st-insta-header {
                 display: flex;
@@ -32,6 +33,7 @@ window.STPhone.Apps.Instagram = (function() {
                 padding: 12px 16px;
                 border-bottom: 1px solid var(--pt-border, #dbdbdb);
                 background: var(--pt-card-bg, #fff);
+                flex-shrink: 0;
             }
             .st-insta-logo {
                 font-family: 'Billabong', cursive, sans-serif;
@@ -53,7 +55,16 @@ window.STPhone.Apps.Instagram = (function() {
             .st-insta-feed {
                 flex: 1;
                 overflow-y: auto;
+                overflow-x: hidden;
                 padding-bottom: 60px;
+                -webkit-overflow-scrolling: touch;
+            }
+            .st-insta-feed::-webkit-scrollbar {
+                width: 4px;
+            }
+            .st-insta-feed::-webkit-scrollbar-thumb {
+                background: rgba(0,0,0,0.2);
+                border-radius: 2px;
             }
             
             /* 스토리 영역 */
@@ -991,7 +1002,6 @@ Example output format:
                     </div>
                 </div>
                 <div class="st-insta-feed" id="st-insta-feed">
-                    ${renderStories()}
                     ${renderFeed()}
                 </div>
             </div>
@@ -1001,47 +1011,9 @@ Example output format:
         attachListeners();
     }
 
+    // 스토리 기능 제거됨
     function renderStories() {
-        const user = getUserInfo();
-        const charInfo = getCharacterInfo();
-        const contacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
-
-        let storiesHtml = `
-            <div class="st-insta-stories">
-                <div class="st-insta-story" data-name="${escapeHtml(user.name)}">
-                    <div class="st-insta-story-avatar" style="background: #dbdbdb;">
-                        <img src="${user.avatar}" alt="">
-                    </div>
-                    <span class="st-insta-story-name">내 스토리</span>
-                </div>
-        `;
-
-        // 캐릭터 스토리
-        storiesHtml += `
-            <div class="st-insta-story" data-name="${escapeHtml(charInfo.name)}">
-                <div class="st-insta-story-avatar">
-                    <img src="${getContactAvatar(charInfo.name)}" alt="">
-                </div>
-                <span class="st-insta-story-name">${escapeHtml(charInfo.name)}</span>
-            </div>
-        `;
-
-        // 연락처 스토리
-        contacts.slice(0, 5).forEach(c => {
-            if (c?.name && c.name !== charInfo.name) {
-                storiesHtml += `
-                    <div class="st-insta-story" data-name="${escapeHtml(c.name)}">
-                        <div class="st-insta-story-avatar">
-                            <img src="${c.avatar || getContactAvatar(c.name)}" alt="">
-                        </div>
-                        <span class="st-insta-story-name">${escapeHtml(c.name)}</span>
-                    </div>
-                `;
-            }
-        });
-
-        storiesHtml += '</div>';
-        return storiesHtml;
+        return '';
     }
 
     function renderFeed() {
@@ -1118,17 +1090,31 @@ Example output format:
                     <span class="st-insta-create-title">새 게시물</span>
                     <span class="st-insta-create-next disabled" id="st-insta-create-share">공유</span>
                 </div>
-                <div class="st-insta-create-content">
+                <div class="st-insta-create-content" style="overflow-y: auto;">
                     <div class="st-insta-create-preview" id="st-insta-create-preview">
                         <i class="fa-regular fa-image"></i>
                     </div>
-                    <textarea class="st-insta-create-prompt" id="st-insta-create-prompt" 
-                              placeholder="이미지 설명을 입력하세요 (예: 카페에서 커피 마시는 셀카)"></textarea>
-                    <button class="st-insta-create-btn" id="st-insta-generate-btn">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> 이미지 생성
-                    </button>
-                    <textarea class="st-insta-create-caption" id="st-insta-create-caption" 
-                              placeholder="캡션을 입력하세요..." style="display: none;"></textarea>
+                    
+                    <div style="background: var(--pt-card-bg, #fff); border-radius: 12px; padding: 14px; margin-bottom: 12px;">
+                        <div style="font-size: 13px; font-weight: 600; color: var(--pt-sub-text, #8e8e8e); margin-bottom: 8px;">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right: 6px;"></i>이미지 생성 프롬프트
+                        </div>
+                        <textarea class="st-insta-create-prompt" id="st-insta-create-prompt" 
+                                  placeholder="예: 카페에서 커피 마시는 셀카, 창밖 비오는 날씨"
+                                  style="min-height: 60px;"></textarea>
+                        <button class="st-insta-create-btn" id="st-insta-generate-btn" style="margin-top: 10px;">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 이미지 생성
+                        </button>
+                    </div>
+                    
+                    <div style="background: var(--pt-card-bg, #fff); border-radius: 12px; padding: 14px;">
+                        <div style="font-size: 13px; font-weight: 600; color: var(--pt-sub-text, #8e8e8e); margin-bottom: 8px;">
+                            <i class="fa-regular fa-pen-to-square" style="margin-right: 6px;"></i>피드 캡션
+                        </div>
+                        <textarea class="st-insta-create-caption" id="st-insta-create-caption" 
+                                  placeholder="예: 오늘의 커피 ☕ #카페스타그램 #일상"
+                                  style="min-height: 80px;"></textarea>
+                    </div>
                 </div>
             </div>
         `;
@@ -1209,7 +1195,6 @@ Example output format:
 
                 if (generatedImageUrl) {
                     $preview.html(`<img src="${generatedImageUrl}" alt="">`);
-                    $('#st-insta-create-caption').show();
                     $('#st-insta-create-share').removeClass('disabled');
                     toastr.success('이미지 생성 완료!');
                 } else {
