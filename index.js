@@ -50,6 +50,8 @@ const EXTENSION_NAME = 'ST Phone System';
             await loadModule('apps/store-apps/games.js');
             await loadModule('apps/store-apps/calendar.js');
             await loadModule('apps/store-apps/theme.js');
+            await loadModule('apps/store-apps/instagram.js');
+            await loadModule('apps/store-apps/music.js');
 
 
 
