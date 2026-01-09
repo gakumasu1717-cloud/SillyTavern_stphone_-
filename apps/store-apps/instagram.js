@@ -576,6 +576,7 @@ Output ONLY the comment text, no quotes.`
         try {
             const saved = localStorage.getItem(key);
             posts = saved ? JSON.parse(saved) : [];
+            console.log(`📸 [Instagram] 로드 완료: ${posts.length}개 포스트, 댓글수: ${posts.reduce((sum, p) => sum + (p.comments?.length || 0), 0)}`);
         } catch (e) {
             posts = [];
         }
@@ -586,6 +587,7 @@ Output ONLY the comment text, no quotes.`
         if (!key) return;
         try {
             localStorage.setItem(key, JSON.stringify(posts));
+            console.log(`📸 [Instagram] 저장 완료: ${posts.length}개 포스트, 키: ${key}`);
         } catch (e) {
             console.error('[Instagram] 저장 실패:', e);
         }
@@ -1256,6 +1258,7 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         // 댓글 추가 (날짜 태그 제거)
         const cleanComment = stripDateTag(comment.trim());
+        console.log(`📸 [Instagram] 댓글 추가 전 post.comments.length: ${post.comments.length}`);
         post.comments.push({
             id: Date.now(),
             author: charName,
@@ -1263,6 +1266,7 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
             text: cleanComment,
             timestamp: getRpTimestamp()
         });
+        console.log(`📸 [Instagram] 댓글 추가 후 post.comments.length: ${post.comments.length}`);
 
         savePosts();
         console.log(`💬 [Instagram] ${charName}의 댓글: ${cleanComment}`);
@@ -1272,7 +1276,8 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         // 인스타그램 열려있으면 UI 새로고침
         if ($('.st-insta-app').length) {
-            open();
+            console.log(`📸 [Instagram] UI 새로고침 중...`);
+            setTimeout(() => open(), 100); // 약간의 딜레이
         }
         
         } catch (e) {
