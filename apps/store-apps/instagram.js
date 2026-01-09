@@ -839,7 +839,7 @@ Example output format:
 Respond in JSON format ONLY:
 {
     "shouldPost": true or false,
-    "caption": "Instagram caption in Korean if posting",
+    "caption": "Short casual caption in Korean (1-2 sentences, NO hashtags)",
     "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
 }
 
