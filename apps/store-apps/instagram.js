@@ -1857,7 +1857,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // 포스팅 패턴 감지 (여러 개 처리) - 패턴에서 캐릭터 이름 추출
         // [Instagram 포스팅] 짱돌이가 Instagram에 게시물을 올렸습니다: "캡션"
-        const postRegex = /\[Instagram 포스팅\]\s*([^\s가이]+)(?:가|이)\s*Instagram에[^"]*"([^"]+)"/gi;
+        const postRegex = /\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/gi;
         let postMatch;
         while ((postMatch = postRegex.exec(html)) !== null) {
             const authorName = postMatch[1] || fallbackName;
@@ -1870,7 +1870,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // 답글 패턴 감지 (여러 개 처리) - 패턴에서 캐릭터 이름 추출
         // [Instagram 답글] 짱돌이가 ㄱ의 댓글에 답글을 남겼습니다: "내용"
-        const replyRegex = /\[Instagram 답글\]\s*(\S+?)가[^"]*"([^"]+)"/gi;
+        const replyRegex = /\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/gi;
         let replyMatch;
         let replyModified = false;
         while ((replyMatch = replyRegex.exec(html)) !== null) {
