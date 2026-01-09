@@ -1889,6 +1889,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                         const c = window.SillyTavern.getContext();
                         const last = c.chat?.[c.chat.length - 1];
                         if (last && !last.is_user) {
+                            // [NEW] 채팅에서 [Instagram 포스팅] 패턴 감지
+                            parseInstagramFromChat(last.name, last.mes);
+                            // 기존 프로액티브 체크
                             checkProactivePost(last.name);
                         }
                     }, 2000);
@@ -1898,6 +1901,88 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 console.warn('📸 [Instagram] ⚠️ 이벤트 리스너 등록 실패');
             }
         }, 500);
+    }
+
+    // [NEW] 채팅에서 인스타 포스팅 감지
+    function parseInstagramFromChat(charName, message) {
+        if (!message) return;
+        
+        // 패턴: [Instagram 포스팅] 캐릭터가 Instagram에 게시물을 올렸습니다: "캡션"
+        const postMatch = message.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+        if (postMatch) {
+            const caption = postMatch[1];
+            console.log(`📸 [Instagram] 채팅에서 포스팅 감지! 캐릭터: ${charName}, 캡션: ${caption}`);
+            createPostFromChat(charName, caption);
+            return;
+        }
+        
+        // 패턴: [Instagram 댓글] 도 감지 가능
+        const commentMatch = message.match(/\[Instagram 댓글\][^"]*"([^"]+)"/i);
+        if (commentMatch) {
+            console.log(`📸 [Instagram] 채팅에서 댓글 감지 (이미 처리됨)`);
+        }
+    }
+
+    // [NEW] 채팅 감지로 포스트 생성
+    async function createPostFromChat(charName, caption) {
+        if (isGeneratingPost) {
+            console.log('📸 [Instagram] 이미 생성 중, 스킵');
+            return;
+        }
+        
+        isGeneratingPost = true;
+        
+        try {
+            console.log(`📸 [Instagram] 채팅 감지 포스팅 시작: ${charName}`);
+            
+            // 이미지 생성
+            let imageUrl = null;
+            try {
+                const detailedPrompt = await generateDetailedPrompt(
+                    `${charName} selfie for Instagram, ${caption}`,
+                    charName
+                );
+                console.log(`📸 [Instagram] 이미지 프롬프트:`, detailedPrompt);
+                imageUrl = await generateImage(detailedPrompt);
+            } catch (e) {
+                console.warn('[Instagram] 이미지 생성 실패:', e);
+            }
+            
+            // 포스트 저장
+            loadPosts();
+            const newPost = {
+                id: Date.now(),
+                author: charName,
+                authorAvatar: getContactAvatar(charName),
+                imageUrl: imageUrl || '',
+                caption: caption,
+                timestamp: getRpTimestamp(),
+                likes: Math.floor(Math.random() * 50) + 10,
+                likedByUser: false,
+                comments: [],
+                isUser: false
+            };
+            
+            posts.unshift(newPost);
+            savePosts();
+            
+            console.log(`📸 [Instagram] ✅ 채팅 감지 포스팅 완료: ${caption}`);
+            
+            // 토스트 알림
+            if (window.toastr) {
+                toastr.info(`📸 ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
+            }
+            
+            // 인스타 열려있으면 새로고침
+            if ($('.st-insta-app').length) {
+                setTimeout(() => open(), 100);
+            }
+            
+        } catch (e) {
+            console.error('[Instagram] 채팅 감지 포스팅 실패:', e);
+        } finally {
+            isGeneratingPost = false;
+        }
     }
 
     // 초기화
