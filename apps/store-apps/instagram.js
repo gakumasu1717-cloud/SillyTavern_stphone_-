@@ -1870,7 +1870,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // 답글 패턴 감지 (여러 개 처리) - 패턴에서 캐릭터 이름 추출
         // [Instagram 답글] 짱돌이가 ㄱ의 댓글에 답글을 남겼습니다: "내용"
-        const replyRegex = /\[Instagram 답글\]\s*([^\s가이]+)(?:가|이)[^"]*"([^"]+)"/gi;
+        const replyRegex = /\[Instagram 답글\]\s*(\S+?)가[^"]*"([^"]+)"/gi;
         let replyMatch;
         let replyModified = false;
         while ((replyMatch = replyRegex.exec(html)) !== null) {
