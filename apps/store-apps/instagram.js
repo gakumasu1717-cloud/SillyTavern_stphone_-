@@ -1256,7 +1256,6 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         const $screen = window.STPhone.UI.getContentElement();
         if (!$screen || !$screen.length) return;
-        }
         $screen.empty();
 
         const calInfo = getCalendarInfo();
