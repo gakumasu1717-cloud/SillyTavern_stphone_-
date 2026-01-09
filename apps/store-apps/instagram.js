@@ -733,6 +733,32 @@ Output ONLY the comment text, no quotes.`
         return new Date(timestamp).toLocaleDateString('ko-KR');
     }
 
+    // 최근 채팅 히스토리 가져오기
+    function getChatHistory(maxTokens = 500) {
+        const ctx = window.SillyTavern?.getContext?.();
+        if (!ctx?.chat || ctx.chat.length === 0) return '(대화 없음)';
+
+        const reverseChat = ctx.chat.slice().reverse();
+        const collected = [];
+        let currentTokens = 0;
+
+        for (const m of reverseChat) {
+            if (m.extra?.is_phone_log || m.extra?.isSmallSys) continue; // 폰 로그 제외
+            
+            const msgContent = m.mes || '';
+            if (!msgContent.trim()) continue;
+            
+            const estimatedTokens = Math.ceil(msgContent.length / 2.5);
+            if (currentTokens + estimatedTokens > maxTokens) break;
+
+            const role = m.is_user ? 'User' : m.name || 'Character';
+            collected.unshift(`${role}: ${msgContent.substring(0, 200)}`);
+            currentTokens += estimatedTokens;
+        }
+
+        return collected.length > 0 ? collected.join('\n') : '(대화 없음)';
+    }
+
     // ========== AI 생성 함수 ==========
     function normalizeModelOutput(raw) {
         if (raw == null) return '';
@@ -1156,8 +1182,19 @@ If the situation is not suitable for posting, set shouldPost to false.`;
     }
 
     // ========== 댓글 시스템 ==========
+    let isGeneratingComment = false;
+    
     async function checkAndGenerateComment(postId, charName) {
-        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+        // 중복 호출 방지
+        if (isGeneratingComment) {
+            console.log('[Instagram] 이미 댓글 생성 중...');
+            return;
+        }
+        
+        isGeneratingComment = true;
+        
+        try {
+            const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         
         loadPosts();
         const post = posts.find(p => p.id === postId);
@@ -1185,19 +1222,35 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         });
 
         const shouldComment = await generateWithAI(contextPrompt, 10);
-        if (!shouldComment?.toUpperCase().includes('YES')) return;
+        if (!shouldComment?.toUpperCase().includes('YES')) {
+            isGeneratingComment = false;
+            return;
+        }
 
-        // 댓글 생성
-        const commentTemplate = getPrompt('characterComment');
-        const commentPrompt = fillPrompt(commentTemplate, {
-            char: charName,
-            postAuthor: post.author,
-            postCaption: post.caption,
-            relationship
-        });
+        // 댓글 생성 (채팅 히스토리 + 캐릭터 성격 반영)
+        const charInfo = getCharacterInfo();
+        const chatHistory = getChatHistory(500); // 최근 채팅 문맥
+        
+        const commentPrompt = `[System] You are ${charName}.
+Personality: ${charInfo.personality || '자연스럽고 친근함'}
+Relationship with ${post.author}: ${relationship}
+
+### Recent conversation context:
+${chatHistory}
+
+### Task:
+${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
+게시물 내용: "${post.caption}"
+
+위의 대화 맥락과 ${charName}의 성격을 반영해서 자연스러운 댓글을 작성하세요.
+평소 대화하는 말투를 유지하세요. 반말/존대말은 대화 맥락을 따르세요.
+1-2문장으로 짧게. 댓글 텍스트만 출력하세요.`;
 
         const comment = await generateWithAI(commentPrompt, 100);
-        if (!comment?.trim()) return;
+        if (!comment?.trim()) {
+            isGeneratingComment = false;
+            return;
+        }
 
         // 댓글 추가 (날짜 태그 제거)
         const cleanComment = stripDateTag(comment.trim());
@@ -1214,6 +1267,12 @@ If the situation is not suitable for posting, set shouldPost to false.`;
 
         // 히든 로그
         addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
+        
+        } catch (e) {
+            console.error('[Instagram] 댓글 생성 실패:', e);
+        } finally {
+            isGeneratingComment = false;
+        }
     }
 
     // ========== 히든 로그 ==========
