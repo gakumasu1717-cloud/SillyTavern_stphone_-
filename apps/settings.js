@@ -158,7 +158,7 @@ Input: "{{description}}"
         },
 
         // [인스타그램 앱 프롬프트]
-        instaContextPrompt: ### Current Story Context
+        instaContextPrompt: `### Current Story Context
 """
 {{context}}
 """
@@ -170,9 +170,9 @@ Consider:
 - Is there something worth sharing?
 - Would {{char}} naturally want to share this on social media?
 
-Answer with ONLY "YES" or "NO" (one word only).,
+Answer with ONLY "YES" or "NO" (one word only).`,
 
-        instaPostPrompt: ## Instagram Post Generation
+        instaPostPrompt: `## Instagram Post Generation
 ### Core Rules
 1. You are {{char}} posting on Instagram.
 2. Generate ONLY the caption - no system text, no roleplay actions.
@@ -188,9 +188,9 @@ Answer with ONLY "YES" or "NO" (one word only).,
 
 ### Task
 Write an Instagram caption that {{char}} would naturally post.
-Output format - ONLY the caption text:,
+Output format - ONLY the caption text:`,
 
-        instaCommentContextPrompt: ### Relationship Context
+        instaCommentContextPrompt: `### Relationship Context
 {{char}} and {{user}} relationship: {{relationship}}
 
 ### Post Info
@@ -199,9 +199,9 @@ Output format - ONLY the caption text:,
 
 ### Question
 Would it be natural for {{char}} to leave a comment on this Instagram post?
-Answer with ONLY "YES" or "NO" (one word only).,
+Answer with ONLY "YES" or "NO" (one word only).`,
 
-        instaCommentPrompt: ## Instagram Comment Generation
+        instaCommentPrompt: `## Instagram Comment Generation
 ### Core Rules
 1. You are {{char}} commenting on an Instagram post.
 2. Generate ONLY the comment - no quotes, no actions.
@@ -217,7 +217,7 @@ Answer with ONLY "YES" or "NO" (one word only).,
 
 ### Task
 Write a natural Instagram comment.
-Output format - ONLY the comment text:,
+Output format - ONLY the comment text:`,
 
         proactiveEnabled: false,
         proactiveChance: 30,
