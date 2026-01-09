@@ -1417,14 +1417,19 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     }
 
     // ========== 이벤트 리스너 초기화 ==========
+    let listenerRegistered = false;
+    
     function initProactivePostListener() {
+        if (listenerRegistered) return;
+        
         const check = setInterval(() => {
             const ctx = window.SillyTavern?.getContext?.();
             if (!ctx) return;
             clearInterval(check);
 
             const { eventSource, eventTypes } = ctx;
-            if (eventSource && eventTypes?.MESSAGE_RECEIVED) {
+            if (eventSource && eventTypes?.MESSAGE_RECEIVED && !listenerRegistered) {
+                listenerRegistered = true;
                 eventSource.on(eventTypes.MESSAGE_RECEIVED, (msgId) => {
                     setTimeout(() => {
                         const c = window.SillyTavern.getContext();
