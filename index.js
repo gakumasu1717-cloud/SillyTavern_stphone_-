@@ -240,33 +240,41 @@ const EXTENSION_NAME = 'ST Phone System';
         
         // [📩 발신자 -> 수신자]: 메시지 패턴 먼저 처리 (히든로그 체크 전에!)
         // HTML 엔티티(&gt;)도 처리
-        const phoneMessageRegex = /^\s*\[📩\s*(.+?)\s*(?:->|→|&gt;)\s*(.+?)\s*\]:\s*([\s\S]*)/;
-        const phoneMatch = rawText.match(phoneMessageRegex);
+        // 여러 줄의 📩 메시지를 모두 처리
+        const phoneMessageRegex = /\[📩\s*(.+?)\s*(?:->|→|&gt;)\s*(.+?)\s*\]:\s*([^\n\[]+)/g;
+        const allMatches = [...rawText.matchAll(phoneMessageRegex)];
         
-        if (phoneMatch) {
-            const senderName = phoneMatch[1].trim();
-            const receiverName = phoneMatch[2].trim();
-            let messageText = phoneMatch[3].trim();
+        if (allMatches.length > 0) {
+            const Contacts = window.STPhone.Apps?.Contacts;
+            const Messages = window.STPhone.Apps?.Messages;
+            const userName = window.STPhone.Apps?.Settings?.getSettings?.()?.userName || 'User';
             
-            // Instagram 패턴 제거
-            messageText = messageText.replace(/\[Instagram [^\]]+\][^\n]*/gi, '').trim();
-            
-            if (messageText && window.STPhone?.Apps?.Messages) {
-                const Contacts = window.STPhone.Apps?.Contacts;
-                const Messages = window.STPhone.Apps.Messages;
-                const userName = window.STPhone.Apps?.Settings?.getSettings?.()?.userName || 'User';
+            for (const match of allMatches) {
+                const senderName = match[1].trim();
+                const receiverName = match[2].trim();
+                let messageText = match[3].trim();
                 
-                // 발신자가 유저인지 캐릭터인지 판단
-                const isFromUser = senderName === userName || senderName === receiverName;
+                // Instagram 패턴 제거
+                messageText = messageText.replace(/\[Instagram [^\]]+\][^\n]*/gi, '').trim();
+                messageText = messageText.replace(/\(Instagram[^)]*\)/gi, '').trim();
                 
-                if (!isFromUser) {
-                    // 캐릭터가 유저에게 보낸 메시지 → 수신
-                    const contact = Contacts?.getContactByName?.(senderName);
-                    if (contact && typeof Messages.receiveMessageSequential === 'function') {
-                        Messages.receiveMessageSequential(contact.id, messageText, senderName, userName);
+                if (messageText && Messages) {
+                    // 발신자가 유저인지 캐릭터인지 판단
+                    const isFromUser = senderName === userName || senderName === receiverName;
+                    
+                    if (!isFromUser) {
+                        // 캐릭터가 유저에게 보낸 메시지 → 수신
+                        const contact = Contacts?.getContactByName?.(senderName);
+                        if (contact && typeof Messages.receiveMessageSequential === 'function') {
+                            Messages.receiveMessageSequential(contact.id, messageText, senderName, userName);
+                        }
                     }
                 }
             }
+            
+            // 📩 패턴이 전체 메시지를 차지하면 숨김 처리
+            node.classList.add('st-phone-hidden-log');
+            node.style.display = 'none';
             return; // 📩 패턴 처리 완료
         }
 
