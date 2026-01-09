@@ -10,10 +10,8 @@ window.STPhone.Apps.Instagram = (function() {
     let saveTimer = null;
     let cssInjected = false;
     let lastLoadedChatId = null;
-    let lastProactivePostCheck = 0;
     let isGeneratingPost = false;
     let isGeneratingComment = false;
-    const PROACTIVE_POST_COOLDOWN = 120000;
     const DEFAULT_AVATAR = 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png';
 
     // ========== 기본 프롬프트 (설정에서 오버라이드 가능) ==========
@@ -689,40 +687,26 @@ Output format - ONLY the reply text:`
     async function checkProactivePost(charName) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         console.debug(' [Instagram Proactive] check', { charName, enabled: settings.instagramPostEnabled !== false, isGeneratingPost });
-
+        
         if (settings.instagramPostEnabled === false) {
             console.debug(' [Instagram Proactive] disabled');
             return;
         }
 
-        const sinceLast = Date.now() - lastProactivePostCheck;
-        if (sinceLast < PROACTIVE_POST_COOLDOWN) {
-            console.debug(' [Instagram Proactive] cooldown', { sinceLast });
-            return;
-        }
-
         if (isGeneratingPost) {
-            console.debug(' [Instagram Proactive] blocked');
+            console.debug(' [Instagram Proactive] already generating');
             return;
         }
 
-        // 확률 체크 (기본 15%)
-        const chance = settings.instagramPostChance || 15;
-        const roll = Math.random() * 100;
-        if (roll > chance) {
-            console.log(` [Instagram Proactive] 확률 미달 (${roll.toFixed(0)}% > ${chance}%)`);
-            return;
-        }
-
-        // 1단계: 맥락 판단 - 지금 게시물 올려도 되는 상황인가?
+        // AI가 맥락 판단 - 지금 인스타그램 포스트를 올릴만한 상황인가?
+        // 쿨타임/확률 없이 오직 AI 판단에만 의존 (선톡/선전화 시스템과 동일)
         const contextOK = await checkContextForPost(charName);
         if (!contextOK) {
-            console.log(` [Instagram Proactive] ${charName}: 맥락상 게시물 부적절`);
+            console.debug(` [Instagram Proactive] ${charName}: AI 판단 - 포스트 부적절`);
             return;
         }
 
-        lastProactivePostCheck = Date.now();
-        console.log(` [Instagram Proactive] ${charName}님이 인스타그램 포스트 생성!`);
+        console.log(` [Instagram Proactive] ${charName}님이 AI 판단에 따라 인스타그램 포스트 생성!`);
         await generateCharacterPost(charName);
     }
 
