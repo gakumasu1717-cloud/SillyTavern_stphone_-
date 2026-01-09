@@ -1904,29 +1904,42 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         setTimeout(() => recentReplies.delete(replyKey), 5000);
         
         loadPosts();
+        const user = getUserInfo();
         
-        // 가장 최근 유저 댓글이 있는 게시물 찾기
+        // 유저가 댓글 단 게시물 중 아직 캐릭터 답글이 없는 것 찾기
         let targetPost = null;
-        let latestCommentTime = 0;
+        let targetUserComment = null;
         
         for (const post of posts) {
-            for (const comment of post.comments) {
-                // 유저 댓글 중 가장 최근 것
-                const user = getUserInfo();
-                if (comment.author === user.name && comment.id > latestCommentTime) {
-                    latestCommentTime = comment.id;
+            // 유저 댓글 찾기
+            const userComments = post.comments.filter(c => c.author === user.name);
+            if (userComments.length === 0) continue;
+            
+            // 각 유저 댓글에 대해 캐릭터 답글이 있는지 확인
+            for (const userComment of userComments) {
+                // 이 유저 댓글 이후에 캐릭터 답글이 있는지 확인
+                const hasCharReply = post.comments.some(c => 
+                    c.author.toLowerCase() === charName.toLowerCase() && 
+                    c.id > userComment.id
+                );
+                
+                if (!hasCharReply) {
+                    // 아직 답글 안 달린 유저 댓글 발견
                     targetPost = post;
+                    targetUserComment = userComment;
+                    break;
                 }
             }
+            
+            if (targetPost) break;
         }
         
-        // 유저 댓글 없으면 캐릭터의 가장 최근 게시물에 답글
+        // 답글 안 달린 유저 댓글 없으면 캐릭터의 가장 최근 게시물에 답글
         if (!targetPost) {
             targetPost = posts.find(p => p.author.toLowerCase() === charName.toLowerCase());
         }
         
         if (!targetPost) {
-            // 게시물 없으면 새 게시물 없이 그냥 리턴
             return;
         }
         
