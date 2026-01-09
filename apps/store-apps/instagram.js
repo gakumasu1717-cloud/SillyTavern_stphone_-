@@ -6,12 +6,8 @@
 window.STPhone = window.STPhone || {};
 window.STPhone.Apps = window.STPhone.Apps || {};
 
-console.log('📸 [Instagram] 모듈 로딩 시작...');
-
 window.STPhone.Apps.Instagram = (function() {
     'use strict';
-
-    console.log('📸 [Instagram] IIFE 실행 중...');
 
     const STORAGE_KEY = 'stphone_instagram_posts';
     let posts = [];
@@ -576,7 +572,6 @@ Output ONLY the comment text, no quotes.`
         try {
             const saved = localStorage.getItem(key);
             posts = saved ? JSON.parse(saved) : [];
-            console.log(`📸 [Instagram] 로드 완료: ${posts.length}개 포스트, 댓글수: ${posts.reduce((sum, p) => sum + (p.comments?.length || 0), 0)}`);
         } catch (e) {
             posts = [];
         }
@@ -587,7 +582,6 @@ Output ONLY the comment text, no quotes.`
         if (!key) return;
         try {
             localStorage.setItem(key, JSON.stringify(posts));
-            console.log(`📸 [Instagram] 저장 완료: ${posts.length}개 포스트, 키: ${key}`);
         } catch (e) {
             console.error('[Instagram] 저장 실패:', e);
         }
@@ -784,7 +778,6 @@ Output ONLY the comment text, no quotes.`
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         const profileId = settings.connectionProfileId;
 
-        // 캘린더 프롬프트 주입 방지
         window.STPhone.isPhoneGenerating = true;
 
         try {
@@ -795,7 +788,6 @@ Output ONLY the comment text, no quotes.`
             if (profileId) {
                 const connectionManager = context.ConnectionManagerRequestService;
                 if (connectionManager && typeof connectionManager.sendRequest === 'function') {
-                    console.log('[Instagram] ConnectionManager로 AI 호출...');
                     const result = await connectionManager.sendRequest(
                         profileId,
                         [{ role: 'user', content: prompt }],
@@ -803,30 +795,23 @@ Output ONLY the comment text, no quotes.`
                         {},
                         { max_tokens: maxTokens }
                     );
-                    const output = stripCalendarDate(normalizeModelOutput(result).trim());
-                    console.log('[Instagram] AI 응답:', output.substring(0, 100) + '...');
-                    return output;
+                    return stripCalendarDate(normalizeModelOutput(result).trim());
                 }
             }
 
-            // Fallback: genraw (quiet 모드로 채팅에 안 보이게)
+            // Fallback: genraw
             const parser = context.SlashCommandParser || window.SlashCommandParser;
             const genCmd = parser?.commands?.['genraw'];
             if (genCmd?.callback) {
-                console.log('[Instagram] genraw로 AI 호출...');
                 const result = await genCmd.callback({ quiet: true, hidden: true }, prompt);
-                const output = stripCalendarDate(String(result || '').trim());
-                console.log('[Instagram] AI 응답:', output.substring(0, 100) + '...');
-                return output;
+                return stripCalendarDate(String(result || '').trim());
             }
 
-            console.warn('[Instagram] AI 호출 방법 없음');
             return null;
         } catch (e) {
             console.error('[Instagram] AI 생성 실패:', e);
             return null;
         } finally {
-            // 플래그 해제
             window.STPhone.isPhoneGenerating = false;
         }
     }
@@ -1029,7 +1014,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                 };
             }
         } catch (e) {
-            console.warn('[Instagram] 통합 AI 호출 실패:', e);
+            console.warn('[Instagram] AI 호출 실패:', e);
         }
         
         return { shouldPost: false, caption: null, imagePrompt: null };
@@ -1039,55 +1024,31 @@ If the situation is not suitable for posting, set shouldPost to false.`;
     async function checkProactivePost(charName) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         
-        console.log(`📸 [Instagram] checkProactivePost 호출됨: ${charName}`);
-        console.log(`📸 [Instagram] 설정 - enabled: ${settings.instagramPostEnabled}, chance: ${settings.instagramPostChance}%`);
-        
-        if (settings.instagramPostEnabled === false) {
-            console.log('📸 [Instagram] 포스팅 비활성화됨');
-            return;
-        }
-        if (isGeneratingPost) {
-            console.log('📸 [Instagram] 이미 생성 중...');
-            return;
-        }
+        if (settings.instagramPostEnabled === false) return;
+        if (isGeneratingPost) return;
         
         // 확률 체크 (기본 15%)
         const chance = settings.instagramPostChance || 15;
         const roll = Math.random() * 100;
-        console.log(`📸 [Instagram] 확률 체크: ${roll.toFixed(1)} <= ${chance}?`);
-        if (roll > chance) {
-            console.log('📸 [Instagram] 확률 체크 실패, 스킵');
-            return;
-        }
-        console.log('📸 [Instagram] 확률 체크 통과! AI 호출 시작...');
+        if (roll > chance) return;
 
         const contact = getContactByName(charName);
         const charInfo = getCharacterInfo();
         const personality = contact?.personality || charInfo.personality || '';
 
-        console.log(`📸 [Instagram] ${charName}의 프로액티브 포스트 체크...`);
-
         isGeneratingPost = true;
         
         try {
             const result = await generatePostAllInOne(charName, personality);
-            console.log(`📸 [Instagram] AI 결과:`, JSON.stringify(result));
             
-            if (!result.shouldPost) {
-                console.log(`📸 [Instagram] ${charName} 포스팅 조건 불충족 (AI가 shouldPost: false 반환)`);
-                return;
-            }
-            console.log(`📸 [Instagram] 포스팅 진행! 캡션: ${result.caption}`);
+            if (!result.shouldPost) return;
 
-            // 이미지 생성 (AI 프롬프트 상세화 거침)
-            console.log(`📸 [Instagram] ${charName}의 이미지 생성 중...`);
+            // 이미지 생성
             let imageUrl = null;
             
             if (result.imagePrompt) {
                 try {
-                    // 카메라/메신저와 동일하게 AI 프롬프트 상세화 적용
                     const detailedPrompt = await generateDetailedPrompt(result.imagePrompt, charName);
-                    console.log(`📸 [Instagram] 상세화된 프롬프트:`, detailedPrompt);
                     imageUrl = await generateImage(detailedPrompt);
                 } catch (e) {
                     console.warn('[Instagram] 이미지 생성 실패:', e);
@@ -1113,7 +1074,6 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             savePosts();
 
             addHiddenLog(charName, `[Instagram 포스팅] ${charName}가 Instagram에 게시물을 올렸습니다: "${result.caption}"`);
-            console.log(`📸 [Instagram] ${charName} 게시물 완료!`);
             
         } finally {
             isGeneratingPost = false;
@@ -1145,30 +1105,21 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                 caption = await generateWithAI(prompt, 150);
             }
 
-            if (!caption?.trim()) {
-                console.warn('[Instagram] 캡션 생성 실패');
-                return;
-            }
+            if (!caption?.trim()) return;
 
             // 이미지 생성
-            console.log(`📸 [Instagram] ${posterName}의 이미지 생성 중...`);
             const detailedPrompt = await generateDetailedPrompt(
                 `${posterName} selfie for Instagram, ${caption}`,
                 posterName
             );
             const imageUrl = await generateImage(detailedPrompt);
 
-            if (!imageUrl) {
-                console.warn('[Instagram] 이미지 생성 실패');
-                // 이미지 없이도 포스팅 가능
-            }
-
             // 포스트 저장
             const newPost = {
                 id: Date.now(),
                 author: posterName,
                 authorAvatar: getContactAvatar(posterName),
-                imageUrl: imageUrl || 'https://via.placeholder.com/400x400?text=Photo',
+                imageUrl: imageUrl || '',
                 caption: caption.trim(),
                 timestamp: getRpTimestamp(),
                 likes: Math.floor(Math.random() * 50) + 10,
@@ -1180,12 +1131,8 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             posts.unshift(newPost);
             savePosts();
 
-            console.log(`📸 [Instagram] ${posterName}의 포스트 생성 완료:`, caption);
-
-            // 히든 로그 추가 (채팅 맥락에 반영)
             addHiddenLog(posterName, `[Instagram 포스팅] ${posterName}가 Instagram에 게시물을 올렸습니다: "${caption}"`);
 
-            // 토스트 알림
             if (window.toastr) {
                 toastr.info(`📸 ${posterName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
             }
@@ -1249,14 +1196,10 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 만약 댓글을 달고 싶지 않다면 [SKIP]만 출력하세요.`;
 
         const comment = await generateWithAI(commentPrompt, 100);
-        if (!comment?.trim() || comment.includes('[SKIP]')) {
-            console.log(`📸 [Instagram] ${charName} 댓글 스킵`);
-            return;
-        }
+        if (!comment?.trim() || comment.includes('[SKIP]')) return;
 
-        // 댓글 추가 (날짜 태그 제거)
+        // 댓글 추가
         const cleanComment = stripDateTag(comment.trim());
-        console.log(`📸 [Instagram] 댓글 추가 전 post.comments.length: ${post.comments.length}`);
         post.comments.push({
             id: Date.now(),
             author: charName,
@@ -1264,18 +1207,15 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
             text: cleanComment,
             timestamp: getRpTimestamp()
         });
-        console.log(`📸 [Instagram] 댓글 추가 후 post.comments.length: ${post.comments.length}`);
 
         savePosts();
-        console.log(`💬 [Instagram] ${charName}의 댓글: ${cleanComment}`);
 
         // 히든 로그
         addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
 
         // 인스타그램 열려있으면 UI 새로고침
         if ($('.st-insta-app').length) {
-            console.log(`📸 [Instagram] UI 새로고침 중...`);
-            setTimeout(() => open(), 100); // 약간의 딜레이
+            setTimeout(() => open(), 100);
         }
         
         } catch (e) {
@@ -1314,16 +1254,11 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
     // ========== 렌더링 함수 ==========
     function open() {
-        console.log('📸 [Instagram] open() 호출됨');
-        
         loadPosts();
-        currentPage = 1; // 페이지 초기화
+        currentPage = 1;
 
         const $screen = window.STPhone.UI.getContentElement();
-        console.log('📸 [Instagram] $screen:', $screen, 'length:', $screen?.length);
-        if (!$screen || !$screen.length) {
-            console.error('📸 [Instagram] $screen을 찾을 수 없음!');
-            return;
+        if (!$screen || !$screen.length) return;
         }
         $screen.empty();
 
@@ -1614,7 +1549,6 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
         // 이벤트 위임으로 처리되므로 별도 리스너 연결 불필요
         
         isLoadingMore = false;
-        console.log(`📸 [Instagram] 페이지 ${currentPage} 로드 완료 (${newPosts.length}개)`);
     }
 
     function attachCreateListeners() {
@@ -1858,84 +1792,50 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     function initProactivePostListener() {
         if (listenerRegistered) return;
-        console.log('📸 [Instagram] initProactivePostListener 시작...');
         
-        let attempts = 0;
-        const maxAttempts = 60; // 30초 후 타임아웃 (500ms * 60)
-        
-        const check = setInterval(() => {
-            attempts++;
-            
-            // 타임아웃 체크
-            if (attempts >= maxAttempts) {
-                clearInterval(check);
-                console.warn('📸 [Instagram] ⚠️ SillyTavern context 타임아웃 (30초)');
-                return;
-            }
-            
+        const checkInterval = setInterval(() => {
             const ctx = window.SillyTavern?.getContext?.();
-            if (!ctx) {
-                return;
-            }
-            clearInterval(check);
-            console.log('📸 [Instagram] SillyTavern context 획득! (시도:', attempts, '번)');
+            if (!ctx) return;
+
+            clearInterval(checkInterval);
 
             const { eventSource, eventTypes } = ctx;
-            
-            if (eventSource && eventTypes?.MESSAGE_RECEIVED && !listenerRegistered) {
+
+            if (eventSource && eventTypes?.MESSAGE_RECEIVED) {
                 listenerRegistered = true;
-                eventSource.on(eventTypes.MESSAGE_RECEIVED, (msgId) => {
-                    console.log('📸 [Instagram] MESSAGE_RECEIVED 이벤트 수신!');
+                eventSource.on(eventTypes.MESSAGE_RECEIVED, (messageId) => {
                     setTimeout(() => {
                         const c = window.SillyTavern.getContext();
-                        const last = c.chat?.[c.chat.length - 1];
-                        if (last && !last.is_user) {
-                            // [NEW] 채팅에서 [Instagram 포스팅] 패턴 감지
-                            parseInstagramFromChat(last.name, last.mes);
-                            // 기존 프로액티브 체크
-                            checkProactivePost(last.name);
+                        if (!c?.chat || c.chat.length === 0) return;
+                        
+                        const lastMsg = c.chat[c.chat.length - 1];
+                        if (lastMsg && !lastMsg.is_user) {
+                            parseInstagramFromChat(lastMsg.name, lastMsg.mes);
+                            checkProactivePost(lastMsg.name);
                         }
-                    }, 2000);
+                    }, 500);
                 });
-                console.log('📸 [Instagram] ✅ 프로액티브 포스트 리스너 등록 완료!');
-            } else {
-                console.warn('📸 [Instagram] ⚠️ 이벤트 리스너 등록 실패');
             }
-        }, 500);
+        }, 1000);
     }
 
-    // [NEW] 채팅에서 인스타 포스팅 감지
+    // 채팅에서 인스타 포스팅 감지
     function parseInstagramFromChat(charName, message) {
         if (!message) return;
         
-        // 패턴: [Instagram 포스팅] 캐릭터가 Instagram에 게시물을 올렸습니다: "캡션"
         const postMatch = message.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
         if (postMatch) {
-            const caption = postMatch[1];
-            console.log(`📸 [Instagram] 채팅에서 포스팅 감지! 캐릭터: ${charName}, 캡션: ${caption}`);
-            createPostFromChat(charName, caption);
-            return;
-        }
-        
-        // 패턴: [Instagram 댓글] 도 감지 가능
-        const commentMatch = message.match(/\[Instagram 댓글\][^"]*"([^"]+)"/i);
-        if (commentMatch) {
-            console.log(`📸 [Instagram] 채팅에서 댓글 감지 (이미 처리됨)`);
+            createPostFromChat(charName, postMatch[1]);
         }
     }
 
-    // [NEW] 채팅 감지로 포스트 생성
+    // 채팅 감지로 포스트 생성
     async function createPostFromChat(charName, caption) {
-        if (isGeneratingPost) {
-            console.log('📸 [Instagram] 이미 생성 중, 스킵');
-            return;
-        }
+        if (isGeneratingPost) return;
         
         isGeneratingPost = true;
         
         try {
-            console.log(`📸 [Instagram] 채팅 감지 포스팅 시작: ${charName}`);
-            
             // 이미지 생성
             let imageUrl = null;
             try {
@@ -1943,10 +1843,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                     `${charName} selfie for Instagram, ${caption}`,
                     charName
                 );
-                console.log(`📸 [Instagram] 이미지 프롬프트:`, detailedPrompt);
                 imageUrl = await generateImage(detailedPrompt);
             } catch (e) {
-                console.warn('[Instagram] 이미지 생성 실패:', e);
+                // 이미지 없어도 포스팅 진행
             }
             
             // 포스트 저장
@@ -1967,8 +1866,6 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             posts.unshift(newPost);
             savePosts();
             
-            console.log(`📸 [Instagram] ✅ 채팅 감지 포스팅 완료: ${caption}`);
-            
             // 토스트 알림
             if (window.toastr) {
                 toastr.info(`📸 ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
@@ -1986,13 +1883,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         }
     }
 
-    // 초기화
-    try {
-        initProactivePostListener();
-        console.log('📸 [Instagram] 모듈 로딩 완료!');
-    } catch (e) {
-        console.error('📸 [Instagram] 초기화 오류:', e);
-    }
+    // 초기화 - messages.js와 동일하게 3초 후 시작
+    setTimeout(initProactivePostListener, 3000);
 
     // 공개 API
     return {
