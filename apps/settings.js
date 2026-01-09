@@ -1,4 +1,4 @@
-window.STPhone = window.STPhone || {};
+﻿window.STPhone = window.STPhone || {};
 window.STPhone.Apps = window.STPhone.Apps || {};
 
 window.STPhone.Apps.Settings = (function() {
@@ -156,6 +156,68 @@ Input: "{{description}}"
             cameraPrompt: 0,
             photoMessagePrompt: 0
         },
+
+        // [인스타그램 앱 프롬프트]
+        instaContextPrompt: ### Current Story Context
+"""
+{{context}}
+"""
+
+### Question
+Based on the story context above, would it be natural for {{char}} to post on Instagram right now?
+Consider:
+- Is {{char}} physically able to use their phone?
+- Is there something worth sharing?
+- Would {{char}} naturally want to share this on social media?
+
+Answer with ONLY "YES" or "NO" (one word only).,
+
+        instaPostPrompt: ## Instagram Post Generation
+### Core Rules
+1. You are {{char}} posting on Instagram.
+2. Generate ONLY the caption - no system text, no roleplay actions.
+3. Keep it natural and casual (1-3 sentences).
+4. Include hashtags if fitting {{char}}'s style.
+
+### Character Info
+- Name: {{char}}
+- Personality: {{personality}}
+
+### Recent Context
+{{context}}
+
+### Task
+Write an Instagram caption that {{char}} would naturally post.
+Output format - ONLY the caption text:,
+
+        instaCommentContextPrompt: ### Relationship Context
+{{char}} and {{user}} relationship: {{relationship}}
+
+### Post Info
+- Posted by: {{postAuthor}}
+- Caption: "{{postCaption}}"
+
+### Question
+Would it be natural for {{char}} to leave a comment on this Instagram post?
+Answer with ONLY "YES" or "NO" (one word only).,
+
+        instaCommentPrompt: ## Instagram Comment Generation
+### Core Rules
+1. You are {{char}} commenting on an Instagram post.
+2. Generate ONLY the comment - no quotes, no actions.
+3. Keep it short and casual (1-2 sentences max).
+
+### Character Info
+- Name: {{char}}
+- Personality: {{personality}}
+
+### Post Info
+- Posted by: {{postAuthor}}
+- Caption: "{{postCaption}}"
+
+### Task
+Write a natural Instagram comment.
+Output format - ONLY the comment text:,
 
         proactiveEnabled: false,
         proactiveChance: 30,
@@ -869,6 +931,54 @@ function saveToStorage() {
                                 <button class="st-btn-small" id="st-reset-photo-msg">기본값</button>
                             </div>
                         </div>
+
+                        <!-- 인스타그램 프롬프트 (스토어 앱) -->
+                        <div class="st-section">
+                            <div class="st-row-block">
+                                <span class="st-label" style="font-size:15px;"><i class="fa-brands fa-instagram" style="margin-right:6px;"></i>인스타그램 프롬프트</span>
+                                <span class="st-desc">인스타그램 앱 설치 시 활성화됩니다</span>
+                            </div>
+                        </div>
+
+                        <!-- 인스타 맥락 판단 -->
+                        <div class="st-section">
+                            <div class="st-row-block">
+                                <span class="st-label"><i class="fa-solid fa-brain" style="margin-right:6px;"></i>게시물 맥락 판단</span>
+                                <span class="st-desc">AI가 인스타 포스팅할지 판단 (YES/NO 응답)</span>
+                                <textarea class="st-textarea mono" id="st-prompt-insta-context" rows="8"></textarea>
+                                <button class="st-btn-small" id="st-reset-insta-context">기본값</button>
+                            </div>
+                        </div>
+
+                        <!-- 인스타 게시물 캡션 -->
+                        <div class="st-section">
+                            <div class="st-row-block">
+                                <span class="st-label"><i class="fa-solid fa-pen" style="margin-right:6px;"></i>게시물 캡션 생성</span>
+                                <span class="st-desc">캐릭터 인스타 포스트 캡션 생성</span>
+                                <textarea class="st-textarea mono" id="st-prompt-insta-post" rows="8"></textarea>
+                                <button class="st-btn-small" id="st-reset-insta-post">기본값</button>
+                            </div>
+                        </div>
+
+                        <!-- 인스타 댓글 맥락 판단 -->
+                        <div class="st-section">
+                            <div class="st-row-block">
+                                <span class="st-label"><i class="fa-solid fa-comment-dots" style="margin-right:6px;"></i>댓글 맥락 판단</span>
+                                <span class="st-desc">AI가 댓글 달지 판단 (YES/NO 응답)</span>
+                                <textarea class="st-textarea mono" id="st-prompt-insta-comment-context" rows="6"></textarea>
+                                <button class="st-btn-small" id="st-reset-insta-comment-context">기본값</button>
+                            </div>
+                        </div>
+
+                        <!-- 인스타 댓글 생성 -->
+                        <div class="st-section">
+                            <div class="st-row-block">
+                                <span class="st-label"><i class="fa-regular fa-comment" style="margin-right:6px;"></i>댓글 생성</span>
+                                <span class="st-desc">캐릭터 인스타 댓글 생성</span>
+                                <textarea class="st-textarea mono" id="st-prompt-insta-comment" rows="6"></textarea>
+                                <button class="st-btn-small" id="st-reset-insta-comment">기본값</button>
+                            </div>
+                        </div>
                     </div>
             </div>
             <style>
@@ -1511,6 +1621,49 @@ $('#st-reset-user-translate-prompt').on('click', () => {
             }
         });
 
+
+        // ========== 인스타그램 프롬프트 ==========
+        // 로드
+        $('#st-prompt-insta-context').val(currentSettings.instaContextPrompt || defaultSettings.instaContextPrompt);
+        $('#st-prompt-insta-post').val(currentSettings.instaPostPrompt || defaultSettings.instaPostPrompt);
+        $('#st-prompt-insta-comment-context').val(currentSettings.instaCommentContextPrompt || defaultSettings.instaCommentContextPrompt);
+        $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt || defaultSettings.instaCommentPrompt);
+
+        // 저장
+        $('#st-prompt-insta-context').on('input', function() { currentSettings.instaContextPrompt = $(this).val(); saveToStorage(); });
+        $('#st-prompt-insta-post').on('input', function() { currentSettings.instaPostPrompt = $(this).val(); saveToStorage(); });
+        $('#st-prompt-insta-comment-context').on('input', function() { currentSettings.instaCommentContextPrompt = $(this).val(); saveToStorage(); });
+        $('#st-prompt-insta-comment').on('input', function() { currentSettings.instaCommentPrompt = $(this).val(); saveToStorage(); });
+
+        // 기본값 버튼
+        $('#st-reset-insta-context').on('click', () => {
+            if(confirm('게시물 맥락 판단 프롬프트를 기본값으로 되돌릴까요?')) {
+                currentSettings.instaContextPrompt = defaultSettings.instaContextPrompt;
+                $('#st-prompt-insta-context').val(currentSettings.instaContextPrompt);
+                saveToStorage();
+            }
+        });
+        $('#st-reset-insta-post').on('click', () => {
+            if(confirm('게시물 캡션 프롬프트를 기본값으로 되돌릴까요?')) {
+                currentSettings.instaPostPrompt = defaultSettings.instaPostPrompt;
+                $('#st-prompt-insta-post').val(currentSettings.instaPostPrompt);
+                saveToStorage();
+            }
+        });
+        $('#st-reset-insta-comment-context').on('click', () => {
+            if(confirm('댓글 맥락 판단 프롬프트를 기본값으로 되돌릴까요?')) {
+                currentSettings.instaCommentContextPrompt = defaultSettings.instaCommentContextPrompt;
+                $('#st-prompt-insta-comment-context').val(currentSettings.instaCommentContextPrompt);
+                saveToStorage();
+            }
+        });
+        $('#st-reset-insta-comment').on('click', () => {
+            if(confirm('댓글 생성 프롬프트를 기본값으로 되돌릴까요?')) {
+                currentSettings.instaCommentPrompt = defaultSettings.instaCommentPrompt;
+                $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt);
+                saveToStorage();
+            }
+        });
         // ========== 프롬프트 내보내기/불러오기 ==========
         $('#st-export-prompts').on('click', exportAllPrompts);
         $('#st-import-prompts').on('change', importAllPrompts);

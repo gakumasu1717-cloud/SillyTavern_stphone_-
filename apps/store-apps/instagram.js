@@ -116,7 +116,8 @@ Output format - ONLY the reply text:`
 .st-insta-tabs{display:flex;border-bottom:1px solid var(--pt-border,#dbdbdb);background:var(--pt-bg-color,#fff);flex-shrink:0}
 .st-insta-tab{flex:1;padding:12px;text-align:center;font-size:14px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--pt-sub-text,#8e8e8e);transition:all .2s}
 .st-insta-tab.active{color:var(--pt-text-color,#262626);border-bottom-color:var(--pt-text-color,#262626)}
-.st-insta-feed{flex:1;overflow-y:auto;padding-bottom:80px}
+#st-insta-content{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.st-insta-feed{flex:1;padding-bottom:80px}
 .st-insta-post{background:var(--pt-card-bg,#fff);border-bottom:1px solid var(--pt-border,#dbdbdb);margin-bottom:12px}
 .st-insta-post-header{display:flex;align-items:center;padding:12px 14px;gap:10px}
 .st-insta-post-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover}
@@ -266,7 +267,16 @@ Output format - ONLY the reply text:`
     // ========== 프롬프트 가져오기 (설정에서 오버라이드 가능) ==========
     function getPrompt(key) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-        return settings[`instagram${key}Prompt`] || DEFAULT_PROMPTS[key] || '';
+        // settings.js 키 매핑
+        const keyMap = {
+            contextCheck: 'instaContextPrompt',
+            characterPost: 'instaPostPrompt',
+            commentContextCheck: 'instaCommentContextPrompt',
+            characterComment: 'instaCommentPrompt',
+            characterReply: 'instaCommentPrompt'
+        };
+        const settingsKey = keyMap[key];
+        return settings[settingsKey] || DEFAULT_PROMPTS[key] || '';
     }
 
     function fillPrompt(template, vars) {
