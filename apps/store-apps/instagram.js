@@ -648,10 +648,11 @@ Output ONLY the comment text, no quotes.`
             const context = window.SillyTavern?.getContext?.();
             if (!context) throw new Error('SillyTavern context not available');
 
-            // Connection Profile 사용
+            // Connection Profile 사용 (우선)
             if (profileId) {
                 const connectionManager = context.ConnectionManagerRequestService;
                 if (connectionManager && typeof connectionManager.sendRequest === 'function') {
+                    console.log('[Instagram] ConnectionManager로 AI 호출...');
                     const result = await connectionManager.sendRequest(
                         profileId,
                         [{ role: 'user', content: prompt }],
@@ -659,18 +660,24 @@ Output ONLY the comment text, no quotes.`
                         {},
                         { max_tokens: maxTokens }
                     );
-                    return normalizeModelOutput(result).trim();
+                    const output = normalizeModelOutput(result).trim();
+                    console.log('[Instagram] AI 응답:', output.substring(0, 100) + '...');
+                    return output;
                 }
             }
 
-            // Fallback: genraw
+            // Fallback: genraw (quiet 모드로 채팅에 안 보이게)
             const parser = context.SlashCommandParser || window.SlashCommandParser;
-            const genCmd = parser?.commands?.['genraw'] || parser?.commands?.['gen'];
+            const genCmd = parser?.commands?.['genraw'];
             if (genCmd?.callback) {
-                const result = await genCmd.callback({ quiet: 'true' }, prompt);
-                return String(result || '').trim();
+                console.log('[Instagram] genraw로 AI 호출...');
+                const result = await genCmd.callback({ quiet: true, hidden: true }, prompt);
+                const output = String(result || '').trim();
+                console.log('[Instagram] AI 응답:', output.substring(0, 100) + '...');
+                return output;
             }
 
+            console.warn('[Instagram] AI 호출 방법 없음');
             return null;
         } catch (e) {
             console.error('[Instagram] AI 생성 실패:', e);
@@ -817,26 +824,25 @@ Example output format:
         const visualTags = contact?.tags || '';
         
         // settings에서 템플릿 가져오기, 없으면 기본값 사용
-        let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
+        let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. You want to post on Instagram right now.
 
-### Context
+### Recent conversation context
 {{context}}
 
 ### Your personality
 {{personality}}
 
-### Your visual tags for image generation
+### Your visual appearance tags
 {{visualTags}}
 
 ### Task
+Generate an Instagram post. Always set shouldPost to true.
 Respond in JSON format ONLY:
 {
-    "shouldPost": true or false,
-    "caption": "Instagram caption in Korean if posting",
-    "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
-}
-
-If the situation is not suitable for posting, set shouldPost to false.`;
+    "shouldPost": true,
+    "caption": "Instagram caption in Korean, casual and fun",
+    "imagePrompt": "detailed SD prompt in English: character appearance, pose, setting, lighting, style"
+}`;
 
         // 플레이스홀더 치환
         const prompt = promptTemplate
@@ -866,12 +872,28 @@ If the situation is not suitable for posting, set shouldPost to false.`;
     // ========== 프로액티브 포스트 ==========
     async function checkProactivePost(charName) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-        if (settings.instagramPostEnabled === false) return;
-        if (isGeneratingPost) return;
+        
+        console.log(`📸 [Instagram] checkProactivePost 호출됨: ${charName}`);
+        console.log(`📸 [Instagram] 설정 - enabled: ${settings.instagramPostEnabled}, chance: ${settings.instagramPostChance}%`);
+        
+        if (settings.instagramPostEnabled === false) {
+            console.log('📸 [Instagram] 포스팅 비활성화됨');
+            return;
+        }
+        if (isGeneratingPost) {
+            console.log('📸 [Instagram] 이미 생성 중...');
+            return;
+        }
         
         // 확률 체크 (기본 15%)
         const chance = settings.instagramPostChance || 15;
-        if (Math.random() * 100 > chance) return;
+        const roll = Math.random() * 100;
+        console.log(`📸 [Instagram] 확률 체크: ${roll.toFixed(1)} <= ${chance}?`);
+        if (roll > chance) {
+            console.log('📸 [Instagram] 확률 체크 실패, 스킵');
+            return;
+        }
+        console.log('📸 [Instagram] 확률 체크 통과! AI 호출 시작...');
 
         const contact = getContactByName(charName);
         const charInfo = getCharacterInfo();
@@ -883,11 +905,13 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         
         try {
             const result = await generatePostAllInOne(charName, personality);
+            console.log(`📸 [Instagram] AI 결과:`, JSON.stringify(result));
             
             if (!result.shouldPost) {
-                console.log(`📸 [Instagram] ${charName} 포스팅 조건 불충족`);
+                console.log(`📸 [Instagram] ${charName} 포스팅 조건 불충족 (AI가 shouldPost: false 반환)`);
                 return;
             }
+            console.log(`📸 [Instagram] 포스팅 진행! 캡션: ${result.caption}`);
 
             // 이미지 생성 (AI 프롬프트 상세화 거침)
             console.log(`📸 [Instagram] ${charName}의 이미지 생성 중...`);
