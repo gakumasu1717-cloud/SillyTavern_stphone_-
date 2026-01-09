@@ -6,8 +6,12 @@
 window.STPhone = window.STPhone || {};
 window.STPhone.Apps = window.STPhone.Apps || {};
 
+console.log('📸 [Instagram] 모듈 로딩 시작...');
+
 window.STPhone.Apps.Instagram = (function() {
     'use strict';
+
+    console.log('📸 [Instagram] IIFE 실행 중...');
 
     const STORAGE_KEY = 'stphone_instagram_posts';
     let posts = [];
@@ -1414,7 +1418,12 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     }
 
     // 초기화
-    initProactivePostListener();
+    try {
+        initProactivePostListener();
+        console.log('📸 [Instagram] 모듈 로딩 완료!');
+    } catch (e) {
+        console.error('📸 [Instagram] 초기화 오류:', e);
+    }
 
     // 공개 API
     return {

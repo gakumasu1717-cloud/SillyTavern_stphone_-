@@ -724,9 +724,34 @@ window.STPhone.Apps.Store = (function() {
         });
     }
 
-    function openInstalledApp(appId) {
+    function openInstalledApp(appId, retryCount = 0) {
         // 스토어 앱들의 실제 기능 실행
         const Apps = window.STPhone.Apps;
+
+        // 앱 이름 매핑 (appId -> Apps 객체 키)
+        const appNameMap = {
+            'notes': 'Notes',
+            'weather': 'Weather',
+            'music': 'Music',
+            'games': 'Games',
+            'calendar': 'Calendar',
+            'theme': 'Theme',
+            'instagram': 'Instagram'
+        };
+
+        const appName = appNameMap[appId];
+        
+        // 앱 모듈이 아직 로드되지 않았으면 재시도
+        if (appName && !Apps[appName]) {
+            if (retryCount < 5) {
+                console.log(`[Store] ${appName} 앱 로딩 대기 중... (${retryCount + 1}/5)`);
+                setTimeout(() => openInstalledApp(appId, retryCount + 1), 300);
+                return;
+            } else {
+                toastr.error('앱을 로드하는 데 실패했습니다. 페이지를 새로고침해 주세요.');
+                return;
+            }
+        }
 
         switch(appId) {
             case 'notes':
