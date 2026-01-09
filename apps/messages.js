@@ -1272,24 +1272,24 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             let lineText = lines[i].trim();
             if (!lineText) continue;
 
-            // Instagram 포스팅/답글 패턴 감지 및 제거
+            // Instagram 포스팅/답글/댓글 패턴 감지 및 제거
             if (window.STPhone.Apps?.Instagram) {
                 const Instagram = window.STPhone.Apps.Instagram;
                 
                 // 포스팅 패턴 - 있을 때만 처리
                 if (lineText.includes('[Instagram 포스팅]')) {
-                    const postMatch = lineText.match(/\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/i);
+                    const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
                     if (postMatch && typeof Instagram.createPostFromChat === 'function') {
-                        Instagram.createPostFromChat(postMatch[1], postMatch[2]);
+                        Instagram.createPostFromChat(contactName, postMatch[1]);
                     }
                     lineText = lineText.replace(/\[Instagram 포스팅\][^\n]*/gi, '').trim();
                 }
                 
                 // 답글 패턴 - 있을 때만 처리
                 if (lineText.includes('[Instagram 답글]')) {
-                    const replyMatch = lineText.match(/\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/i);
+                    const replyMatch = lineText.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
                     if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
-                        Instagram.addReplyFromChat(replyMatch[1], replyMatch[2]);
+                        Instagram.addReplyFromChat(contactName, replyMatch[1]);
                     }
                     lineText = lineText.replace(/\[Instagram 답글\][^\n]*/gi, '').trim();
                 }
@@ -3026,18 +3026,18 @@ Personality: ${settings.userPersonality || '(not specified)'}
                     
                     // 포스팅 패턴 - 있을 때만 처리
                     if (cleanMessage.includes('[Instagram 포스팅]')) {
-                        const postMatch = cleanMessage.match(/\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/i);
+                        const postMatch = cleanMessage.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
                         if (postMatch && typeof Instagram.createPostFromChat === 'function') {
-                            Instagram.createPostFromChat(postMatch[1], postMatch[2]);
+                            Instagram.createPostFromChat(member.name, postMatch[1]);
                         }
                         cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^\n]*/gi, '').trim();
                     }
                     
                     // 답글 패턴 - 있을 때만 처리
                     if (cleanMessage.includes('[Instagram 답글]')) {
-                        const replyMatch = cleanMessage.match(/\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/i);
+                        const replyMatch = cleanMessage.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
                         if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
-                            Instagram.addReplyFromChat(replyMatch[1], replyMatch[2]);
+                            Instagram.addReplyFromChat(member.name, replyMatch[1]);
                         }
                         cleanMessage = cleanMessage.replace(/\[Instagram 답글\][^\n]*/gi, '').trim();
                     }

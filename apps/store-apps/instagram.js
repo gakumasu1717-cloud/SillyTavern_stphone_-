@@ -1931,9 +1931,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // 포스팅 패턴 - 있을 때만 처리
         if (html.includes('[Instagram 포스팅]')) {
-            const postMatch = html.match(/\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/i);
+            const postMatch = html.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
             if (postMatch) {
-                createPostFromChat(postMatch[1] || fallbackName, postMatch[2]);
+                createPostFromChat(fallbackName, postMatch[1]);
             }
             html = html.replace(/\[Instagram 포스팅\][^\n<]*/gi, '');
             modified = true;
@@ -1941,9 +1941,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // 답글 패턴 - 있을 때만 처리
         if (html.includes('[Instagram 답글]')) {
-            const replyMatch = html.match(/\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/i);
+            const replyMatch = html.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
             if (replyMatch) {
-                addReplyFromChat(replyMatch[1] || fallbackName, replyMatch[2]);
+                addReplyFromChat(fallbackName, replyMatch[1]);
             }
             html = html.replace(/\[Instagram 답글\][^\n<]*/gi, '');
             modified = true;
