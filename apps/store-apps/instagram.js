@@ -1315,6 +1315,10 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
     // ========== 렌더링 함수 ==========
     function open() {
         console.log('📸 [Instagram] open() 호출됨');
+        
+        // 인스타 열 때 기존 메시지 스캔
+        scanRecentMessagesForInstagram();
+        
         loadPosts();
         currentPage = 1; // 페이지 초기화
 
@@ -1985,9 +1989,46 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         }
     }
 
+    // [NEW] 채팅 열 때 최근 메시지 스캔 (이미 있는 [Instagram 포스팅] 감지)
+    function scanRecentMessagesForInstagram() {
+        const ctx = window.SillyTavern?.getContext?.();
+        if (!ctx?.chat || ctx.chat.length === 0) return;
+        
+        // 최근 10개 메시지만 스캔
+        const recentMessages = ctx.chat.slice(-10);
+        
+        for (const msg of recentMessages) {
+            if (msg.is_user) continue;
+            if (!msg.mes) continue;
+            
+            // 이미 처리된 메시지인지 체크 (extra에 표시)
+            if (msg.extra?.instagram_processed) continue;
+            
+            // [Instagram 포스팅] 패턴 감지
+            const postMatch = msg.mes.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+            if (postMatch) {
+                const caption = postMatch[1];
+                console.log(`📸 [Instagram] 기존 메시지에서 포스팅 감지! 캐릭터: ${msg.name}, 캡션: ${caption}`);
+                
+                // 처리됨 표시
+                if (!msg.extra) msg.extra = {};
+                msg.extra.instagram_processed = true;
+                
+                createPostFromChat(msg.name, caption);
+                return; // 한 번에 하나만 처리
+            }
+        }
+    }
+
     // 초기화
     try {
         initProactivePostListener();
+        
+        // 1초 후 기존 메시지 스캔
+        setTimeout(() => {
+            scanRecentMessagesForInstagram();
+        }, 1000);
+        
         console.log('📸 [Instagram] 모듈 로딩 완료!');
     } catch (e) {
         console.error('📸 [Instagram] 초기화 오류:', e);
@@ -1998,6 +2039,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         open,
         generateCharacterPost,
         checkProactivePost,
+        scanRecentMessagesForInstagram,
         loadPosts: () => { loadPosts(); return posts; },
         addComment: addUserComment
     };
