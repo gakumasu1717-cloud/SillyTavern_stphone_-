@@ -487,32 +487,7 @@ window.STPhone.Apps.Instagram = (function() {
 
     // ========== 기본 프롬프트 ==========
     const DEFAULT_PROMPTS = {
-        contextCheck: `### Current Story Context
-"""
-{{context}}
-"""
-Based on the story, would it be natural for {{char}} to post on Instagram?
-Answer with ONLY "YES" or "NO".`,
-
-        contextAndPost: `## Combined Instagram Context + Caption
-### Context
-"""
-{{context}}
-"""
-### Character: {{char}}
-### Personality: {{personality}}
-
-If {{char}} would naturally post now, generate caption.
-If not appropriate, say NO.
-
-Output: YES: [caption] or NO`,
-
-        characterPost: `## Instagram Post Generation
-You are {{char}} posting on Instagram.
-Generate ONLY the caption text (1-3 sentences, casual).
-Context: {{context}}
-Personality: {{personality}}`,
-
+        // 댓글 관련 프롬프트만 유지 (통합 프롬프트는 generatePostAllInOne에서 직접 처리)
         commentContextCheck: `Would {{char}} comment on this post by {{postAuthor}}?
 Caption: "{{postCaption}}"
 Relationship: {{relationship}}
@@ -521,7 +496,7 @@ Answer YES or NO.`,
         characterComment: `You are {{char}} commenting on {{postAuthor}}'s post.
 Caption: "{{postCaption}}"
 Relationship: {{relationship}}
-Write a short comment (1-2 sentences).
+Write a short comment (1-2 sentences, in Korean).
 Output ONLY the comment text, no quotes.`
     };
 
@@ -570,14 +545,14 @@ Output ONLY the comment text, no quotes.`
 
     function getPrompt(key) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-        const keyMap = {
-            contextCheck: 'instaContextPrompt',
-            contextAndPost: 'instaContextAndPostPrompt',
-            characterPost: 'instaPostPrompt',
-            commentContextCheck: 'instaCommentContextPrompt',
-            characterComment: 'instaCommentPrompt'
-        };
-        return settings[keyMap[key]] || DEFAULT_PROMPTS[key] || '';
+        
+        // 댓글 생성 프롬프트 - settings에서 가져오거나 기본값 사용
+        if (key === 'characterComment') {
+            return settings.instaCommentPrompt || DEFAULT_PROMPTS.characterComment;
+        }
+        
+        // 나머지는 기본값 사용
+        return DEFAULT_PROMPTS[key] || '';
     }
 
     function fillPrompt(template, vars) {
@@ -836,20 +811,22 @@ Example output format:
 
     // ========== 통합 AI 호출 (3회 → 1회) ==========
     async function generatePostAllInOne(charName, personality) {
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         const context = getRecentChatContext();
         const contact = getContactByName(charName);
         const visualTags = contact?.tags || '';
         
-        const prompt = `You are ${charName}. Based on the recent chat context, decide if you would post on Instagram right now.
+        // settings에서 템플릿 가져오기, 없으면 기본값 사용
+        let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
 ### Context
-${context}
+{{context}}
 
 ### Your personality
-${personality}
+{{personality}}
 
 ### Your visual tags for image generation
-${visualTags}
+{{visualTags}}
 
 ### Task
 Respond in JSON format ONLY:
@@ -860,6 +837,13 @@ Respond in JSON format ONLY:
 }
 
 If the situation is not suitable for posting, set shouldPost to false.`;
+
+        // 플레이스홀더 치환
+        const prompt = promptTemplate
+            .replace(/\{\{charName\}\}/g, charName)
+            .replace(/\{\{context\}\}/g, context)
+            .replace(/\{\{personality\}\}/g, personality)
+            .replace(/\{\{visualTags\}\}/g, visualTags);
 
         try {
             const result = await generateWithAI(prompt, 400);
@@ -905,13 +889,16 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                 return;
             }
 
-            // 이미지 생성
+            // 이미지 생성 (AI 프롬프트 상세화 거침)
             console.log(`📸 [Instagram] ${charName}의 이미지 생성 중...`);
             let imageUrl = null;
             
             if (result.imagePrompt) {
                 try {
-                    imageUrl = await generateImage(result.imagePrompt);
+                    // 카메라/메신저와 동일하게 AI 프롬프트 상세화 적용
+                    const detailedPrompt = await generateDetailedPrompt(result.imagePrompt, charName);
+                    console.log(`📸 [Instagram] 상세화된 프롬프트:`, detailedPrompt);
+                    imageUrl = await generateImage(detailedPrompt);
                 } catch (e) {
                     console.warn('[Instagram] 이미지 생성 실패:', e);
                 }
@@ -1337,8 +1324,10 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                     $btn.addClass('disabled').text('생성 중...');
                     $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
 
-                    // 바로 이미지 생성 (프롬프트 상세화 건너뛰기)
-                    imageUrl = await generateImage(prompt);
+                    // AI 프롬프트 상세화 후 이미지 생성 (카메라/메신저와 동일)
+                    const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
+                    console.log('[Instagram] 상세화된 프롬프트:', detailedPrompt);
+                    imageUrl = await generateImage(detailedPrompt);
 
                     if (!imageUrl) {
                         throw new Error('이미지 생성 실패');

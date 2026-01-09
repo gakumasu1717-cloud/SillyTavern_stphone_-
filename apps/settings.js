@@ -191,81 +191,35 @@ Keep it under 50 words. Just the description, nothing else.`,
         // ========== 인스타그램 설정 ==========
         instagramPostEnabled: true,
         instagramPostChance: 15,
-        instaContextPrompt: `### Current Story Context
-"""
-{{context}}
-"""
-
-### Decision Task
-Analyze the context above and determine if {{char}} would post on Instagram *right now*.
-
-### Criteria for "YES":
-1. **Physical Availability:** {{char}} is holding/using a phone or has immediate access to it, and is not in a crisis or high-stakes situation requiring full attention.
-2. **Motivation:** There is a distinct "Instagrammable" moment (e.g., beautiful scenery, delicious food, a significant emotional event, a funny mishap, or a moment of boredom suited for a random update).
-3. **Character Consistency:** It aligns with {{char}}'s personality to share this specific moment publicly.
-
-### Criteria for "NO":
-- {{char}} is busy, asleep, arguing, or in danger.
-- The moment is too private or mundane to share.
-- It feels forced or repetitive.
-
-Answer with ONLY "YES" or "NO" (one word only).`,
-
-        instaContextAndPostPrompt: `## Combined Instagram Context + Caption
-### Context
-"""
-{{context}}
-"""
-### Character: {{char}}
-### Personality: {{personality}}
-
-If {{char}} would naturally post now, generate caption.
-If not appropriate, say NO.
-
-Output: YES: [caption] or NO`,
-
-        instaPostPrompt: `## Instagram Post Generation
-### Core Rules
-1. You are {{char}} posting on Instagram.
-2. Generate ONLY the caption text. No quotes, no actions, no system headers.
-3. **Tone:** Natural, casual, and reflective of {{char}}'s current mood (e.g., excited, sarcastic, chill, emotional).
-4. **Style:** Use internet slang or emojis if it fits {{char}}'s personality. Keep it brief (1-3 sentences).
-
-### Immediate Context
-{{context}}
-
-### Task
-Draft an Instagram caption based on the context above. Capture the vibe of the moment.
-Output format - ONLY the caption text:`,
-
-        instaCommentContextPrompt: `### Context Analysis
-- Relationship between {{char}} and Post Author: {{relationship}}
-- Post Content: "{{postCaption}}"
-
-### Decision Task
-Would {{char}} naturally leave a comment on this post?
-
-### Consider:
-- **Relationship:** Are they close enough for casual banter? Or is it a formal relationship?
-- **Content Trigger:** Does the post invite a response (question, joke, impressive photo)?
-- **Current State:** Is {{char}} currently ignoring the author or eager to interact?
-
-Answer with ONLY "YES" or "NO" (one word only).`,
-
-        instaCommentPrompt: `## Instagram Comment Generation
-### Core Rules
-1. You are {{char}} commenting on a post by {{postAuthor}}.
-2. Generate ONLY the comment text. No quotes, no prefixes.
-3. **Style:** React naturally as a friend/follower would. Can be a joke, a compliment, a question, or just emojis depending on the context.
-4. Keep it concise (1-2 sentences).
+        
+        // 통합 프롬프트 (상황판단 + 캡션 + 이미지프롬프트 한번에)
+        instaAllInOnePrompt: `You are {{char}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
 ### Context
-- Relationship: {{relationship}}
-- The Post says: "{{postCaption}}"
+{{context}}
+
+### Your personality
+{{personality}}
+
+### Your visual tags for image generation
+{{visualTags}}
 
 ### Task
-Write a reply that fits {{char}}'s personality and their relationship with the author.
-Output format - ONLY the comment text:`
+Respond in JSON format ONLY:
+{
+    "shouldPost": true or false,
+    "caption": "Instagram caption in Korean if posting",
+    "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
+}
+
+If the situation is not suitable for posting, set shouldPost to false.`,
+
+        instaCommentPrompt: `You are {{char}} commenting on {{postAuthor}}'s Instagram post.
+
+Post caption: "{{postCaption}}"
+
+Write a short, natural comment (1 sentence) that fits your personality.
+Output ONLY the comment text, no quotes.`
     };
 
     let currentSettings = { ...defaultSettings };
@@ -973,36 +927,14 @@ function saveToStorage() {
                             </div>
                         </div>
 
-                        <!-- 인스타그램 통합 맥락+캡션 프롬프트 -->
+                        <!-- 인스타그램 통합 프롬프트 (상황판단+캡션+이미지프롬프트) -->
                         <div class="st-section">
                             <div class="st-row-block">
-                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>통합 맥락+캡션 프롬프트</span>
-                                <span class="st-desc">포스팅 여부 판단과 캡션 생성을 한 번에 처리</span>
-                                <span class="st-desc" style="color:#007aff;">변수: {{context}}, {{char}}, {{personality}}</span>
-                                <textarea class="st-textarea mono" id="st-prompt-insta-context-and-post" rows="8"></textarea>
-                                <button class="st-btn-small" id="st-reset-insta-context-and-post">기본값</button>
-                            </div>
-                        </div>
-
-                        <!-- 인스타그램 캡션 생성 프롬프트 -->
-                        <div class="st-section">
-                            <div class="st-row-block">
-                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>캡션 생성 프롬프트</span>
-                                <span class="st-desc">인스타그램 캡션만 생성할 때 사용</span>
-                                <span class="st-desc" style="color:#007aff;">변수: {{context}}, {{char}}, {{personality}}</span>
-                                <textarea class="st-textarea mono" id="st-prompt-insta-post" rows="6"></textarea>
-                                <button class="st-btn-small" id="st-reset-insta-post">기본값</button>
-                            </div>
-                        </div>
-
-                        <!-- 인스타그램 댓글 맥락 프롬프트 -->
-                        <div class="st-section">
-                            <div class="st-row-block">
-                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>댓글 여부 판단 프롬프트</span>
-                                <span class="st-desc">캐릭터가 댓글을 달지 결정할 때 사용</span>
-                                <span class="st-desc" style="color:#007aff;">변수: {{char}}, {{postAuthor}}, {{postCaption}}, {{relationship}}</span>
-                                <textarea class="st-textarea mono" id="st-prompt-insta-comment-context" rows="6"></textarea>
-                                <button class="st-btn-small" id="st-reset-insta-comment-context">기본값</button>
+                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>통합 게시물 프롬프트</span>
+                                <span class="st-desc">포스팅 여부 + 캡션 + 이미지 프롬프트를 한번에 생성</span>
+                                <span class="st-desc" style="color:#007aff;">변수: {{context}}, {{char}}, {{personality}}, {{visualTags}}</span>
+                                <textarea class="st-textarea mono" id="st-prompt-insta-all-in-one" rows="10"></textarea>
+                                <button class="st-btn-small" id="st-reset-insta-all-in-one">기본값</button>
                             </div>
                         </div>
 
@@ -1011,7 +943,7 @@ function saveToStorage() {
                             <div class="st-row-block">
                                 <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>댓글 생성 프롬프트</span>
                                 <span class="st-desc">캐릭터가 댓글을 작성할 때 사용</span>
-                                <span class="st-desc" style="color:#007aff;">변수: {{char}}, {{postAuthor}}, {{postCaption}}, {{relationship}}</span>
+                                <span class="st-desc" style="color:#007aff;">변수: {{char}}, {{postAuthor}}, {{postCaption}}</span>
                                 <textarea class="st-textarea mono" id="st-prompt-insta-comment" rows="6"></textarea>
                                 <button class="st-btn-small" id="st-reset-insta-comment">기본값</button>
                             </div>
@@ -1258,9 +1190,7 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
         if (currentSettings.instagramPostEnabled === false) {
             $('#st-insta-options').hide();
         }
-        $('#st-prompt-insta-context-and-post').val(currentSettings.instaContextAndPostPrompt || defaultSettings.instaContextAndPostPrompt);
-        $('#st-prompt-insta-post').val(currentSettings.instaPostPrompt || defaultSettings.instaPostPrompt);
-        $('#st-prompt-insta-comment-context').val(currentSettings.instaCommentContextPrompt || defaultSettings.instaCommentContextPrompt);
+        $('#st-prompt-insta-all-in-one').val(currentSettings.instaAllInOnePrompt || defaultSettings.instaAllInOnePrompt);
         $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt || defaultSettings.instaCommentPrompt);
     }
 
@@ -1686,32 +1616,12 @@ $('#st-reset-user-translate-prompt').on('click', () => {
             saveToStorage();
         });
 
-        // 인스타그램 통합 맥락+캡션 프롬프트
-        $('#st-prompt-insta-context-and-post').on('input', function() { currentSettings.instaContextAndPostPrompt = $(this).val(); saveToStorage(); });
-        $('#st-reset-insta-context-and-post').on('click', () => {
-            if(confirm('통합 맥락+캡션 프롬프트를 기본값으로 되돌릴까요?')) {
-                currentSettings.instaContextAndPostPrompt = defaultSettings.instaContextAndPostPrompt;
-                $('#st-prompt-insta-context-and-post').val(currentSettings.instaContextAndPostPrompt);
-                saveToStorage();
-            }
-        });
-
-        // 인스타그램 캡션 생성 프롬프트
-        $('#st-prompt-insta-post').on('input', function() { currentSettings.instaPostPrompt = $(this).val(); saveToStorage(); });
-        $('#st-reset-insta-post').on('click', () => {
-            if(confirm('캡션 생성 프롬프트를 기본값으로 되돌릴까요?')) {
-                currentSettings.instaPostPrompt = defaultSettings.instaPostPrompt;
-                $('#st-prompt-insta-post').val(currentSettings.instaPostPrompt);
-                saveToStorage();
-            }
-        });
-
-        // 인스타그램 댓글 맥락 프롬프트
-        $('#st-prompt-insta-comment-context').on('input', function() { currentSettings.instaCommentContextPrompt = $(this).val(); saveToStorage(); });
-        $('#st-reset-insta-comment-context').on('click', () => {
-            if(confirm('댓글 여부 판단 프롬프트를 기본값으로 되돌릴까요?')) {
-                currentSettings.instaCommentContextPrompt = defaultSettings.instaCommentContextPrompt;
-                $('#st-prompt-insta-comment-context').val(currentSettings.instaCommentContextPrompt);
+        // 인스타그램 통합 프롬프트 (포스팅 여부 + 이미지 프롬프트 + 캡션)
+        $('#st-prompt-insta-all-in-one').on('input', function() { currentSettings.instaAllInOnePrompt = $(this).val(); saveToStorage(); });
+        $('#st-reset-insta-all-in-one').on('click', () => {
+            if(confirm('인스타그램 통합 프롬프트를 기본값으로 되돌릴까요?')) {
+                currentSettings.instaAllInOnePrompt = defaultSettings.instaAllInOnePrompt;
+                $('#st-prompt-insta-all-in-one').val(currentSettings.instaAllInOnePrompt);
                 saveToStorage();
             }
         });
