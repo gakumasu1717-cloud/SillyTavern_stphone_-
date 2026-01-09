@@ -208,6 +208,7 @@ const EXTENSION_NAME = 'ST Phone System';
             /^\s*\[📲/i,           // 에어드롭 거절 로그 숨기기
             /^\s*\[ts:/i,          // [NEW] 타임스탬프 로그 숨기기
             /^\s*\[⏰/i,           // [NEW] 타임스탬프 로그 숨기기 (Time Skip)
+            /^\s*\[Instagram/i,    // [NEW] 인스타그램 로그 숨기기
         ];
 
 
