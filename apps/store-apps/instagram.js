@@ -1857,6 +1857,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         if (postMatch) {
             msgNode.dataset.instagramChecked = "true";
             
+            // Phone.js처럼 화면에서 태그 지우기
+            textDiv.innerHTML = html.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
+            
             const charName = msgNode.getAttribute('ch_name') || "Unknown";
             const caption = postMatch[1];
             
@@ -1874,9 +1877,20 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         }
     }
 
+    // 최근 생성된 포스트 캡션 (중복 방지용)
+    let recentPostCaptions = new Set();
+    
     // 채팅 감지로 포스트 생성
     async function createPostFromChat(charName, caption) {
         if (isGeneratingPost) return;
+        
+        // 중복 방지: 같은 캡션으로 5초 내 재생성 방지
+        const captionKey = `${charName}:${caption}`;
+        if (recentPostCaptions.has(captionKey)) {
+            return;
+        }
+        recentPostCaptions.add(captionKey);
+        setTimeout(() => recentPostCaptions.delete(captionKey), 5000);
         
         isGeneratingPost = true;
         

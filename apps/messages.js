@@ -1272,6 +1272,20 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             let lineText = lines[i].trim();
             if (!lineText) continue;
 
+            // Instagram 포스팅 패턴 감지 및 제거
+            if (window.STPhone.Apps?.Instagram) {
+                const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+                if (postMatch) {
+                    const Instagram = window.STPhone.Apps.Instagram;
+                    if (typeof Instagram.createPostFromChat === 'function') {
+                        Instagram.createPostFromChat(contactName, postMatch[1]);
+                    }
+                    // 태그 제거
+                    lineText = lineText.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
+                    if (!lineText) continue; // 태그만 있었으면 스킵
+                }
+            }
+
             const calendarInstalled = window.STPhone?.Apps?.Store?.isInstalled?.('calendar');
             const rpDateInfo = calendarInstalled ? extractRpDate(lineText) : null;
             let rpDateStr = null;
@@ -1364,17 +1378,6 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             }
 
             addHiddenLog(contactName, `[📩 ${contactName} -> ${myName}]: ${lineText}`);
-            
-            // Instagram 포스팅 패턴 감지
-            if (window.STPhone.Apps?.Instagram) {
-                const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
-                if (postMatch) {
-                    const Instagram = window.STPhone.Apps.Instagram;
-                    if (typeof Instagram.createPostFromChat === 'function') {
-                        Instagram.createPostFromChat(contactName, postMatch[1]);
-                    }
-                }
-            }
         }
     }
 
@@ -2997,25 +3000,29 @@ Personality: ${settings.userPersonality || '(not specified)'}
             // [수정됨] 이제 줄바꿈을 쪼개지 않고 멤버별 발언을 한 덩어리로 저장합니다.
             for (let i = 0; i < replies.length; i++) {
                 const { member, message } = replies[i];
-
-                if (!message.trim()) continue;
-
-                // 텀을 두고 전송
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                receiveGroupMessage(groupId, member.id, member.name, message);
-                addHiddenLog(member.name, `[📩 Group "${group.name}"] ${member.name}: ${message}`);
                 
-                // Instagram 포스팅 패턴 감지
+                let cleanMessage = message.trim();
+                if (!cleanMessage) continue;
+
+                // Instagram 포스팅 패턴 감지 및 제거
                 if (window.STPhone.Apps?.Instagram) {
-                    const postMatch = message.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+                    const postMatch = cleanMessage.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
                     if (postMatch) {
                         const Instagram = window.STPhone.Apps.Instagram;
                         if (typeof Instagram.createPostFromChat === 'function') {
                             Instagram.createPostFromChat(member.name, postMatch[1]);
                         }
+                        // 태그 제거
+                        cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
+                        if (!cleanMessage) continue; // 태그만 있었으면 스킵
                     }
                 }
+
+                // 텀을 두고 전송
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                receiveGroupMessage(groupId, member.id, member.name, cleanMessage);
+                addHiddenLog(member.name, `[📩 Group "${group.name}"] ${member.name}: ${cleanMessage}`);
             }
 
 
