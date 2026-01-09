@@ -256,6 +256,9 @@ window.STPhone.UI = (function() {
             case 'theme':
                 Apps.Theme?.open();
                 break;
+            case 'instagram':
+                Apps.Instagram?.open();
+                break;
             default:
                 toastr.warning('앱을 찾을 수 없습니다.');
         }
