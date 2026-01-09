@@ -60,6 +60,15 @@ window.STPhone.Apps.Instagram = (function() {
                 transition: opacity 0.2s;
             }
             .st-insta-header-icon:hover { opacity: 1; }
+            .st-insta-header-date {
+                font-size: 12px;
+                color: var(--pt-text-muted, #8e8e8e);
+                margin-left: 12px;
+            }
+            .st-insta-header-left {
+                display: flex;
+                align-items: center;
+            }
             
             .st-insta-feed {
                 flex: 1;
@@ -1241,11 +1250,17 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         }
         $screen.empty();
 
+        const calInfo = getCalendarInfo();
+        const dateDisplay = calInfo ? `<span class="st-insta-header-date">${calInfo.month}월 ${calInfo.day}일 ${calInfo.dayOfWeek.slice(0, 1)}</span>` : '';
+
         const html = `
             ${css}
             <div class="st-insta-app">
                 <div class="st-insta-header">
-                    <div class="st-insta-logo">Instagram</div>
+                    <div class="st-insta-header-left">
+                        <div class="st-insta-logo">Instagram</div>
+                        ${dateDisplay}
+                    </div>
                     <div class="st-insta-header-icons">
                         <i class="fa-regular fa-heart st-insta-header-icon"></i>
                         <i class="fa-regular fa-paper-plane st-insta-header-icon"></i>
