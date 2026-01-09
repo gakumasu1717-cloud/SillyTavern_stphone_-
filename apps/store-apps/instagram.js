@@ -565,29 +565,50 @@ Output ONLY the comment text, no quotes.`
 
     // ========== 캘린더 연동 ==========
     function getCalendarInfo() {
-        const Calendar = window.STPhone.Apps?.Calendar;
-        const Store = window.STPhone.Apps?.Store;
-        
-        // 캘린더 앱이 설치되어 있고 활성화되어 있는지 확인
-        if (!Store?.isInstalled?.('calendar') || !Calendar?.isCalendarEnabled?.()) {
+        try {
+            const Calendar = window.STPhone.Apps?.Calendar;
+            
+            // 캘린더 앱 자체가 없으면 null
+            if (!Calendar) return null;
+            
+            // 캘린더 비활성화면 null
+            if (typeof Calendar.isCalendarEnabled === 'function' && !Calendar.isCalendarEnabled()) {
+                return null;
+            }
+            
+            const rpDate = Calendar.getRpDate?.();
+            
+            // rpDate 유효성 검사 강화
+            if (!rpDate || 
+                typeof rpDate.year !== 'number' || 
+                typeof rpDate.month !== 'number' || 
+                typeof rpDate.day !== 'number') {
+                return null;
+            }
+            
+            const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+            const dateObj = new Date(rpDate.year, rpDate.month - 1, rpDate.day);
+            
+            // 유효한 날짜인지 확인
+            if (isNaN(dateObj.getTime())) {
+                console.warn('[Instagram] 유효하지 않은 RP 날짜:', rpDate);
+                return null;
+            }
+            
+            const dayOfWeek = dayNames[dateObj.getDay()];
+            
+            return {
+                year: rpDate.year,
+                month: rpDate.month,
+                day: rpDate.day,
+                dayOfWeek,
+                formatted: `${rpDate.year}년 ${rpDate.month}월 ${rpDate.day}일 ${dayOfWeek}`,
+                timestamp: dateObj.getTime()
+            };
+        } catch (e) {
+            console.warn('[Instagram] 캘린더 정보 조회 실패:', e);
             return null;
         }
-        
-        const rpDate = Calendar.getRpDate?.();
-        if (!rpDate) return null;
-        
-        const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-        const dateObj = new Date(rpDate.year, rpDate.month - 1, rpDate.day);
-        const dayOfWeek = dayNames[dateObj.getDay()];
-        
-        return {
-            year: rpDate.year,
-            month: rpDate.month,
-            day: rpDate.day,
-            dayOfWeek,
-            formatted: `${rpDate.year}년 ${rpDate.month}월 ${rpDate.day}일 ${dayOfWeek}`,
-            timestamp: dateObj.getTime()
-        };
     }
 
     function getRpTimestamp() {
@@ -1564,14 +1585,6 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                             <div class="st-insta-profile-stat">
                                 <div class="st-insta-profile-stat-num">${userPosts.length}</div>
                                 <div class="st-insta-profile-stat-label">게시물</div>
-                            </div>
-                            <div class="st-insta-profile-stat">
-                                <div class="st-insta-profile-stat-num">${Math.floor(Math.random() * 500) + 100}</div>
-                                <div class="st-insta-profile-stat-label">팔로워</div>
-                            </div>
-                            <div class="st-insta-profile-stat">
-                                <div class="st-insta-profile-stat-num">${Math.floor(Math.random() * 200) + 50}</div>
-                                <div class="st-insta-profile-stat-label">팔로잉</div>
                             </div>
                         </div>
                     </div>
