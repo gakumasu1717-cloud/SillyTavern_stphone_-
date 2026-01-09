@@ -281,6 +281,9 @@ window.STPhone.Apps.Instagram = (function() {
             .st-insta-comments-list {
                 padding: 0 14px 10px;
             }
+            .st-insta-comments-hidden {
+                display: none !important;
+            }
             .st-insta-comment-item {
                 display: flex;
                 gap: 10px;
@@ -1327,13 +1330,17 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         let commentsHtml = '';
         if (post.comments && post.comments.length > 0) {
-            if (post.comments.length > 2) {
+            // 댓글 3개 이상이면 "모두 보기" 표시하고 기본적으로 숨김
+            const hasMany = post.comments.length > 2;
+            const hiddenClass = hasMany ? 'st-insta-comments-hidden' : '';
+            
+            if (hasMany) {
                 commentsHtml = `<div class="st-insta-post-comments" data-post-id="${post.id}">댓글 ${post.comments.length}개 모두 보기</div>`;
             }
-            // 최근 2개 댓글만 표시
-            const recentComments = post.comments.slice(-2);
-            commentsHtml += `<div class="st-insta-comments-list">`;
-            recentComments.forEach(c => {
+            
+            // 모든 댓글을 담는 컨테이너 (3개 이상이면 숨김)
+            commentsHtml += `<div class="st-insta-comments-list st-insta-all-comments ${hiddenClass}" data-post-id="${post.id}">`;
+            post.comments.forEach(c => {
                 commentsHtml += `
                     <div class="st-insta-comment-item">
                         <span><strong class="st-insta-comment-author">${escapeHtml(c.author)}</strong>${escapeHtml(c.text)}</span>
@@ -1341,6 +1348,20 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
                 `;
             });
             commentsHtml += '</div>';
+            
+            // 3개 이상일 때 최근 2개만 보이는 미리보기
+            if (hasMany) {
+                const recentComments = post.comments.slice(-2);
+                commentsHtml += `<div class="st-insta-comments-list st-insta-preview-comments" data-post-id="${post.id}">`;
+                recentComments.forEach(c => {
+                    commentsHtml += `
+                        <div class="st-insta-comment-item">
+                            <span><strong class="st-insta-comment-author">${escapeHtml(c.author)}</strong>${escapeHtml(c.text)}</span>
+                        </div>
+                    `;
+                });
+                commentsHtml += '</div>';
+            }
         }
 
         // 이미지가 있을 때만 표시
@@ -1476,6 +1497,19 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
                 const name = $(this).data('author');
                 openProfile(name);
         });
+
+        // 댓글 모두 보기 클릭 - 아래로 펼치기
+        $feed.off('click', '.st-insta-post-comments')
+            .on('click', '.st-insta-post-comments', function() {
+                const postId = parseInt($(this).data('post-id'));
+                const $allComments = $(`.st-insta-all-comments[data-post-id="${postId}"]`);
+                const $previewComments = $(`.st-insta-preview-comments[data-post-id="${postId}"]`);
+                
+                // 전체 댓글 보이고, 미리보기 숨기고, "모두 보기" 버튼 숨김
+                $allComments.removeClass('st-insta-comments-hidden');
+                $previewComments.addClass('st-insta-comments-hidden');
+                $(this).hide();
+            });
 
         // 더보기 메뉴
         $feed.off('click', '.st-insta-post-more')
