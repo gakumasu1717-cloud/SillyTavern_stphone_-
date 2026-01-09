@@ -193,25 +193,26 @@ Keep it under 50 words. Just the description, nothing else.`,
         instagramPostChance: 15,
         
         // 통합 프롬프트 (상황판단 + 캡션 + 이미지프롬프트 한번에)
-        instaAllInOnePrompt: `You are {{charName}}. You want to post on Instagram right now.
+        instaAllInOnePrompt: `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
-### Recent conversation context
+### Context
 {{context}}
 
 ### Your personality
 {{personality}}
 
-### Your visual appearance tags
+### Your visual tags for image generation
 {{visualTags}}
 
 ### Task
-Generate an Instagram post. Always set shouldPost to true.
 Respond in JSON format ONLY:
 {
-    "shouldPost": true,
-    "caption": "Instagram caption in Korean, casual and fun",
-    "imagePrompt": "detailed SD prompt in English: character appearance, pose, setting, lighting, style"
-}`,
+    "shouldPost": true or false,
+    "caption": "Instagram caption in Korean if posting",
+    "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
+}
+
+If the situation is not suitable for posting, set shouldPost to false.`,
 
         instaCommentPrompt: `You are {{char}} commenting on {{postAuthor}}'s Instagram post.
 

@@ -824,25 +824,26 @@ Example output format:
         const visualTags = contact?.tags || '';
         
         // settings에서 템플릿 가져오기, 없으면 기본값 사용
-        let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. You want to post on Instagram right now.
+        let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
-### Recent conversation context
+### Context
 {{context}}
 
 ### Your personality
 {{personality}}
 
-### Your visual appearance tags
+### Your visual tags for image generation
 {{visualTags}}
 
 ### Task
-Generate an Instagram post. Always set shouldPost to true.
 Respond in JSON format ONLY:
 {
-    "shouldPost": true,
-    "caption": "Instagram caption in Korean, casual and fun",
-    "imagePrompt": "detailed SD prompt in English: character appearance, pose, setting, lighting, style"
-}`;
+    "shouldPost": true or false,
+    "caption": "Instagram caption in Korean if posting",
+    "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
+}
+
+If the situation is not suitable for posting, set shouldPost to false.`;
 
         // 플레이스홀더 치환
         const prompt = promptTemplate
@@ -1559,25 +1560,36 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     function initProactivePostListener() {
         if (listenerRegistered) return;
+        console.log('📸 [Instagram] initProactivePostListener 시작...');
         
         const check = setInterval(() => {
             const ctx = window.SillyTavern?.getContext?.();
-            if (!ctx) return;
+            if (!ctx) {
+                console.log('📸 [Instagram] SillyTavern context 대기 중...');
+                return;
+            }
             clearInterval(check);
+            console.log('📸 [Instagram] SillyTavern context 획득!');
 
             const { eventSource, eventTypes } = ctx;
+            console.log('📸 [Instagram] eventSource:', !!eventSource, 'eventTypes.MESSAGE_RECEIVED:', eventTypes?.MESSAGE_RECEIVED);
+            
             if (eventSource && eventTypes?.MESSAGE_RECEIVED && !listenerRegistered) {
                 listenerRegistered = true;
                 eventSource.on(eventTypes.MESSAGE_RECEIVED, (msgId) => {
+                    console.log('📸 [Instagram] MESSAGE_RECEIVED 이벤트 수신! msgId:', msgId);
                     setTimeout(() => {
                         const c = window.SillyTavern.getContext();
                         const last = c.chat?.[c.chat.length - 1];
+                        console.log('📸 [Instagram] 마지막 메시지:', last?.name, 'is_user:', last?.is_user);
                         if (last && !last.is_user) {
                             checkProactivePost(last.name);
                         }
                     }, 2000);
                 });
-                console.log('📸 [Instagram] 프로액티브 포스트 리스너 등록 완료');
+                console.log('📸 [Instagram] ✅ 프로액티브 포스트 리스너 등록 완료!');
+            } else {
+                console.warn('📸 [Instagram] ⚠️ 이벤트 리스너 등록 실패 - eventSource:', !!eventSource, 'MESSAGE_RECEIVED:', !!eventTypes?.MESSAGE_RECEIVED);
             }
         }, 500);
     }
