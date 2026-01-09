@@ -1812,7 +1812,57 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                     }, 500);
                 });
             }
+            
+            // Phone.js와 동일: MutationObserver로 DOM 직접 감시
+            startInstagramObserver();
         }, 1000);
+    }
+    
+    // Phone.js 방식: 채팅창 DOM 감시
+    function startInstagramObserver() {
+        const chatRoot = document.getElementById('chat');
+        if (!chatRoot) {
+            setTimeout(startInstagramObserver, 2000);
+            return;
+        }
+
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1 && node.classList.contains('mes')) {
+                        checkMessageForInstagram(node);
+                    }
+                });
+                if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                    const target = mutation.target.parentElement?.closest('.mes');
+                    if (target) checkMessageForInstagram(target);
+                }
+            });
+        });
+
+        observer.observe(chatRoot, { childList: true, subtree: true });
+    }
+
+    // 메시지에서 Instagram 포스팅 태그 감지
+    function checkMessageForInstagram(msgNode) {
+        if (msgNode.dataset.instagramChecked) return;
+        if (msgNode.getAttribute('is_user') === 'true') return;
+        if (!msgNode.classList.contains('last_mes')) return;
+
+        const textDiv = msgNode.querySelector('.mes_text');
+        if (!textDiv) return;
+
+        const html = textDiv.innerHTML;
+        const postMatch = html.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+        
+        if (postMatch) {
+            msgNode.dataset.instagramChecked = "true";
+            
+            const charName = msgNode.getAttribute('ch_name') || "Unknown";
+            const caption = postMatch[1];
+            
+            createPostFromChat(charName, caption);
+        }
     }
 
     // 채팅에서 인스타 포스팅 감지
