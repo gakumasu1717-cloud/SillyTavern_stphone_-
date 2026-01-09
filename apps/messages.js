@@ -1278,7 +1278,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                 
                 // 포스팅 패턴 (여러 개) - 패턴에서 캐릭터 이름 추출
                 // [Instagram 포스팅] 짱돌이가 Instagram에 게시물을 올렸습니다: "캡션"
-                const postRegex = /\[Instagram 포스팅\]\s*([^\s가이]+)(?:가|이)\s*Instagram에[^"]*"([^"]+)"/gi;
+                const postRegex = /\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/gi;
                 let postMatch;
                 while ((postMatch = postRegex.exec(lineText)) !== null) {
                     if (typeof Instagram.createPostFromChat === 'function') {
