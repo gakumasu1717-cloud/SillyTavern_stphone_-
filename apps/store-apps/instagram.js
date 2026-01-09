@@ -1228,24 +1228,9 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         const contact = getContactByName(charName);
         const relationship = contact?.relationship || 'friend';
 
-        // 맥락 체크
-        const contextTemplate = getPrompt('commentContextCheck');
-        const contextPrompt = fillPrompt(contextTemplate, {
-            char: charName,
-            postAuthor: post.author,
-            postCaption: post.caption,
-            relationship
-        });
-
-        const shouldComment = await generateWithAI(contextPrompt, 10);
-        if (!shouldComment?.toUpperCase().includes('YES')) {
-            isGeneratingComment = false;
-            return;
-        }
-
-        // 댓글 생성 (채팅 히스토리 + 캐릭터 성격 반영)
+        // [최적화] 맥락 체크 + 댓글 생성 통합 (2회 → 1회)
         const charInfo = getCharacterInfo();
-        const chatHistory = getChatHistory(500); // 최근 채팅 문맥
+        const chatHistory = getChatHistory(500);
         
         const commentPrompt = `[System] You are ${charName}.
 Personality: ${charInfo.personality || '자연스럽고 친근함'}
@@ -1260,11 +1245,12 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
 위의 대화 맥락과 ${charName}의 성격을 반영해서 자연스러운 댓글을 작성하세요.
 평소 대화하는 말투를 유지하세요. 반말/존대말은 대화 맥락을 따르세요.
-1-2문장으로 짧게. 댓글 텍스트만 출력하세요.`;
+1-2문장으로 짧게. 댓글 텍스트만 출력하세요.
+만약 댓글을 달고 싶지 않다면 [SKIP]만 출력하세요.`;
 
         const comment = await generateWithAI(commentPrompt, 100);
-        if (!comment?.trim()) {
-            isGeneratingComment = false;
+        if (!comment?.trim() || comment.includes('[SKIP]')) {
+            console.log(`📸 [Instagram] ${charName} 댓글 스킵`);
             return;
         }
 
