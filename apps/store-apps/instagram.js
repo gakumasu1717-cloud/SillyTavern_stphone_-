@@ -1149,10 +1149,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
     
     async function checkAndGenerateComment(postId, charName) {
         // 중복 호출 방지
-        if (isGeneratingComment) {
-            console.log('[Instagram] 이미 댓글 생성 중...');
-            return;
-        }
+        if (isGeneratingComment) return;
         
         isGeneratingComment = true;
         
@@ -1589,7 +1586,6 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
                     // AI 프롬프트 상세화 후 이미지 생성 (카메라/메신저와 동일)
                     const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
-                    console.log('[Instagram] 상세화된 프롬프트:', detailedPrompt);
                     imageUrl = await generateImage(detailedPrompt);
 
                     if (!imageUrl) {
@@ -1891,6 +1887,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         open,
         generateCharacterPost,
         checkProactivePost,
+        createPostFromChat,
         loadPosts: () => { loadPosts(); return posts; },
         addComment: addUserComment
     };

@@ -1364,6 +1364,17 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             }
 
             addHiddenLog(contactName, `[📩 ${contactName} -> ${myName}]: ${lineText}`);
+            
+            // Instagram 포스팅 패턴 감지
+            if (window.STPhone.Apps?.Instagram) {
+                const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+                if (postMatch) {
+                    const Instagram = window.STPhone.Apps.Instagram;
+                    if (typeof Instagram.createPostFromChat === 'function') {
+                        Instagram.createPostFromChat(contactName, postMatch[1]);
+                    }
+                }
+            }
         }
     }
 
@@ -2994,6 +3005,17 @@ Personality: ${settings.userPersonality || '(not specified)'}
 
                 receiveGroupMessage(groupId, member.id, member.name, message);
                 addHiddenLog(member.name, `[📩 Group "${group.name}"] ${member.name}: ${message}`);
+                
+                // Instagram 포스팅 패턴 감지
+                if (window.STPhone.Apps?.Instagram) {
+                    const postMatch = message.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+                    if (postMatch) {
+                        const Instagram = window.STPhone.Apps.Instagram;
+                        if (typeof Instagram.createPostFromChat === 'function') {
+                            Instagram.createPostFromChat(member.name, postMatch[1]);
+                        }
+                    }
+                }
             }
 
 
