@@ -345,19 +345,35 @@ Output format - ONLY the reply text:`
             const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
             const userName = settings.userName || 'User';
             const userTags = settings.userTags || '';
+            const cameraPromptTemplate = settings.cameraPrompt || '';
+
+            // 캐릭터 외형 태그 가져오기
+            const contact = getContactByName(characterName);
+            const characterTags = contact?.tags || '';
 
             const allContacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
-            let visualLibrary = '### Visual Tag Library\n';
-            visualLibrary += '1. [' + userName + ' (User)]: ' + userTags + '\n';
+            let visualLibrary = `### Visual Tag Library\n`;
+            visualLibrary += `1. [${userName} (User)]: ${userTags}\n`;
 
             let lineNumber = 2;
-            for (const contact of allContacts) {
-                if (!contact?.name || !contact?.tags) continue;
-                visualLibrary += lineNumber + '. [' + contact.name + ']: ' + contact.tags + '\n';
+            for (const c of allContacts) {
+                if (!c?.name || !c?.tags) continue;
+                visualLibrary += `${lineNumber}. [${c.name}]: ${c.tags}\n`;
                 lineNumber++;
             }
 
-            const aiInstruction = visualLibrary + '\n### Task\nUser request: "' + userInput + '"\nCharacter: ' + characterName + '\nBased on the Library, create a detailed image prompt using the character tags.\nExample output: <pic prompt="tags, comma, separated">';
+            const aiInstruction = `${cameraPromptTemplate}
+
+${visualLibrary}
+
+### Task
+User's request: "${userInput}"
+Target character: ${characterName}
+${characterTags ? `Character appearance: ${characterTags}` : ''}
+Based on the Library, create a detailed image prompt using the character tags.
+
+Example output format:
+<pic prompt="tags, comma, separated">`;
 
             const aiResponse = await genCmd.callback({ quiet: 'true' }, aiInstruction);
             const match = String(aiResponse).match(/<pic[^>]*\sprompt="([^"]*)"[^>]*?>/i);
