@@ -293,11 +293,6 @@ const EXTENSION_NAME = 'ST Phone System';
         // --- 여기서부터는 기존 로직과 동일 (외부 문자 인식용) ---
         // 예: 유저가 폰 앱을 안 쓰고 채팅창에 직접 "/send (SMS) 안녕" 이라고 쳤을 때를 대비함
 
-        const textDiv = node.querySelector('.mes_text');
-        if (!textDiv) return;
-
-        const rawText = textDiv.innerText;
-
         // (SMS)로 시작하는데 아직 안 숨겨진 게 있다면? -> 유저가 직접 친 것
         // 혹은 다른 확장이 만든 것.
         const smsRegex = /^[\(\[]\s*(?:SMS|Text|MMS|Message|문자)\s*[\)\]][:：]?\s*(.*)/i;
