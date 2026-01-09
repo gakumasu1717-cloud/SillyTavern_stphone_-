@@ -71,6 +71,33 @@ window.STPhone.Apps.Instagram = (function() {
                 border-radius: 2px;
             }
             
+            /* FAB 버튼 */
+            .st-insta-fab {
+                position: absolute;
+                bottom: 80px;
+                right: 20px;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af, #515bd4);
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 1000;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .st-insta-fab:hover {
+                transform: scale(1.1);
+                box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+            }
+            .st-insta-fab:active {
+                transform: scale(0.95);
+            }
+            
             /* 스토리 영역 */
             .st-insta-stories {
                 display: flex;
@@ -1005,13 +1032,15 @@ Example output format:
                 <div class="st-insta-header">
                     <div class="st-insta-logo">Instagram</div>
                     <div class="st-insta-header-icons">
-                        <i class="fa-regular fa-square-plus st-insta-header-icon" id="st-insta-new"></i>
                         <i class="fa-regular fa-heart st-insta-header-icon"></i>
                         <i class="fa-regular fa-paper-plane st-insta-header-icon"></i>
                     </div>
                 </div>
                 <div class="st-insta-feed" id="st-insta-feed">
                     ${renderFeed()}
+                </div>
+                <div class="st-insta-fab" id="st-insta-fab">
+                    <i class="fa-solid fa-plus"></i>
                 </div>
             </div>
         `;
@@ -1136,8 +1165,8 @@ Example output format:
     }
 
     function attachListeners() {
-        // 새 게시물
-        $('#st-insta-new').off('click').on('click', openCreateScreen);
+        // 새 게시물 (FAB 버튼)
+        $('#st-insta-fab').off('click').on('click', openCreateScreen);
 
         // 좋아요
         $('.st-insta-post-action[data-action="like"]').off('click').on('click', function() {
