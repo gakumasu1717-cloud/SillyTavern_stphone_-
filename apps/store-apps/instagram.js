@@ -1984,12 +1984,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             if (targetPost) break;
         }
         
-        // 답글 안 달린 유저 댓글 없으면 캐릭터의 가장 최근 게시물에 답글
-        if (!targetPost) {
-            targetPost = posts.find(p => p.author.toLowerCase() === charName.toLowerCase());
-        }
-        
-        if (!targetPost) {
+        // 답글 안 달린 유저 댓글 없으면 답글 안 함
+        if (!targetPost || !targetUserComment) {
             return;
         }
         
@@ -2003,11 +1999,6 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         });
         
         savePosts();
-        
-        // 토스트 알림
-        if (window.toastr) {
-            toastr.info(`💬 ${charName}님이 댓글에 답글을 남겼습니다`, 'Instagram');
-        }
         
         // 인스타 열려있으면 새로고침
         if ($('.st-insta-app').length) {
