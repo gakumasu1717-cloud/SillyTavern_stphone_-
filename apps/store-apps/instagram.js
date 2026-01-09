@@ -1394,65 +1394,95 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         attachCreateListeners();
     }
 
+    let scrollThrottle = null;
+
     function attachListeners() {
         // 새 게시물 (FAB 버튼)
         $('#st-insta-fab').off('click').on('click', openCreateScreen);
 
+        // 이벤트 위임 방식으로 변경 (새로 추가되는 게시물에도 자동 적용)
+        const $feed = $('#st-insta-feed');
+        
         // 좋아요
-        $('.st-insta-post-action[data-action="like"]').off('click').on('click', function() {
-            const postId = parseInt($(this).data('post-id'));
-            toggleLike(postId);
-        });
+        $feed.off('click', '.st-insta-post-action[data-action="like"]')
+            .on('click', '.st-insta-post-action[data-action="like"]', function() {
+                const postId = parseInt($(this).data('post-id'));
+                toggleLike(postId);
+            });
 
         // 댓글 입력
-        $('.st-insta-comment-input input').off('input').on('input', function() {
-            const val = $(this).val().trim();
-            const postId = $(this).data('post-id');
-            $(`.st-insta-comment-btn[data-post-id="${postId}"]`).toggleClass('active', val.length > 0);
-        });
+        $feed.off('input', '.st-insta-comment-input input')
+            .on('input', '.st-insta-comment-input input', function() {
+                const val = $(this).val().trim();
+                const postId = $(this).data('post-id');
+                $(`.st-insta-comment-btn[data-post-id="${postId}"]`).toggleClass('active', val.length > 0);
+            });
 
-        // 댓글 게시
-        $('.st-insta-comment-btn').off('click').on('click', function() {
-            const postId = parseInt($(this).data('post-id'));
-            const $input = $(`.st-insta-comment-input input[data-post-id="${postId}"]`);
-            const text = $input.val().trim();
-            
-            if (text) {
-                addUserComment(postId, text);
-                $input.val('');
-                $(this).removeClass('active');
-            }
-        });
+        // 댓글 엔터키로 게시
+        $feed.off('keydown', '.st-insta-comment-input input')
+            .on('keydown', '.st-insta-comment-input input', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const postId = parseInt($(this).data('post-id'));
+                    const text = $(this).val().trim();
+                    if (text) {
+                        addUserComment(postId, text);
+                        $(this).val('');
+                        $(`.st-insta-comment-btn[data-post-id="${postId}"]`).removeClass('active');
+                    }
+                }
+            });
+
+        // 댓글 게시 버튼
+        $feed.off('click', '.st-insta-comment-btn')
+            .on('click', '.st-insta-comment-btn', function() {
+                const postId = parseInt($(this).data('post-id'));
+                const $input = $(`.st-insta-comment-input input[data-post-id="${postId}"]`);
+                const text = $input.val().trim();
+                
+                if (text) {
+                    addUserComment(postId, text);
+                    $input.val('');
+                    $(this).removeClass('active');
+                }
+            });
 
         // 프로필 보기
-        $('.st-insta-post-author').off('click').on('click', function() {
-            const name = $(this).data('author');
-            openProfile(name);
+        $feed.off('click', '.st-insta-post-author')
+            .on('click', '.st-insta-post-author', function() {
+                const name = $(this).data('author');
+                openProfile(name);
         });
 
         // 더보기 메뉴
-        $('.st-insta-post-more').off('click').on('click', function() {
-            const postId = parseInt($(this).data('post-id'));
-            showPostMenu(postId);
-        });
+        $feed.off('click', '.st-insta-post-more')
+            .on('click', '.st-insta-post-more', function() {
+                const postId = parseInt($(this).data('post-id'));
+                showPostMenu(postId);
+            });
 
-        // 무한스크롤 - 더보기 버튼 클릭
-        $('#st-insta-load-more').off('click').on('click', loadMorePosts);
+        // 무한스크롤 - 더보기 버튼 클릭 (이벤트 위임)
+        $feed.off('click', '.st-insta-load-more')
+            .on('click', '.st-insta-load-more', loadMorePosts);
 
-        // 무한스크롤 - 스크롤 감지
-        $('#st-insta-feed').off('scroll').on('scroll', function() {
-            const $feed = $(this);
-            const scrollTop = $feed.scrollTop();
-            const scrollHeight = $feed[0].scrollHeight;
-            const clientHeight = $feed[0].clientHeight;
-            
-            // 스크롤이 하단 근처(100px)에 도달하면 더 로드
-            if (scrollTop + clientHeight >= scrollHeight - 100 && !isLoadingMore) {
-                const hasMore = posts.length > currentPage * POSTS_PER_PAGE;
-                if (hasMore) {
-                    loadMorePosts();
+        // 무한스크롤 - 스크롤 감지 (쓰로틀링 적용)
+        $feed.off('scroll').on('scroll', function() {
+            if (scrollThrottle) return;
+            scrollThrottle = setTimeout(() => {
+                scrollThrottle = null;
+                
+                const scrollTop = $feed.scrollTop();
+                const scrollHeight = $feed[0].scrollHeight;
+                const clientHeight = $feed[0].clientHeight;
+                
+                // 스크롤이 하단 근처(100px)에 도달하면 더 로드
+                if (scrollTop + clientHeight >= scrollHeight - 100 && !isLoadingMore) {
+                    const hasMore = posts.length > currentPage * POSTS_PER_PAGE;
+                    if (hasMore) {
+                        loadMorePosts();
+                    }
                 }
-            }
+            }, 100);
         });
     }
 
@@ -1487,43 +1517,12 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                     <div class="st-insta-load-more-text">더 보기</div>
                 </div>
             `);
-            $('#st-insta-load-more').on('click', loadMorePosts);
         }
         
-        // 새로 추가된 게시물에 이벤트 리스너 연결
-        attachNewPostListeners();
+        // 이벤트 위임으로 처리되므로 별도 리스너 연결 불필요
         
         isLoadingMore = false;
         console.log(`📸 [Instagram] 페이지 ${currentPage} 로드 완료 (${newPosts.length}개)`);
-    }
-
-    // 새로 추가된 게시물에만 이벤트 연결
-    function attachNewPostListeners() {
-        $('.st-insta-post-action[data-action="like"]').off('click').on('click', function() {
-            const postId = parseInt($(this).data('post-id'));
-            toggleLike(postId);
-        });
-        
-        $('.st-insta-comment-btn').off('click').on('click', function() {
-            const postId = parseInt($(this).data('post-id'));
-            const $input = $(`.st-insta-comment-input input[data-post-id="${postId}"]`);
-            const text = $input.val().trim();
-            if (text) {
-                addUserComment(postId, text);
-                $input.val('');
-                $(this).removeClass('active');
-            }
-        });
-        
-        $('.st-insta-post-author').off('click').on('click', function() {
-            const name = $(this).data('author');
-            openProfile(name);
-        });
-        
-        $('.st-insta-post-more').off('click').on('click', function() {
-            const postId = parseInt($(this).data('post-id'));
-            showPostMenu(postId);
-        });
     }
 
     function attachCreateListeners() {
