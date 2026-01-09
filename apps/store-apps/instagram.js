@@ -753,84 +753,130 @@ Example output format:
         return userInput;
     }
 
+    // ========== 카메라 앱 방식 그대로 ==========
+    function getSlashCommandParser() {
+        if (window.SlashCommandParser && window.SlashCommandParser.commands) {
+            return window.SlashCommandParser;
+        }
+        
+        if (window.SillyTavern) {
+            const ctx = typeof window.SillyTavern.getContext === 'function' 
+                ? window.SillyTavern.getContext() 
+                : window.SillyTavern;
+            
+            if (ctx && ctx.SlashCommandParser && ctx.SlashCommandParser.commands) {
+                return ctx.SlashCommandParser;
+            }
+        }
+
+        if (typeof SlashCommandParser !== 'undefined' && SlashCommandParser.commands) {
+            return SlashCommandParser;
+        }
+
+        return null;
+    }
+
+    function getExecuteSlashCommand() {
+        if (window.SillyTavern) {
+            const ctx = typeof window.SillyTavern.getContext === 'function' 
+                ? window.SillyTavern.getContext() 
+                : window.SillyTavern;
+            
+            if (ctx && typeof ctx.executeSlashCommands === 'function') {
+                return ctx.executeSlashCommands;
+            }
+            if (ctx && typeof ctx.executeSlashCommand === 'function') {
+                return ctx.executeSlashCommand;
+            }
+        }
+
+        if (typeof executeSlashCommands === 'function') {
+            return executeSlashCommands;
+        }
+        if (typeof executeSlashCommand === 'function') {
+            return executeSlashCommand;
+        }
+
+        return null;
+    }
+
     async function generateImage(prompt) {
-        console.log('📸 [Instagram] 이미지 생성 시작:', prompt);
-        
-        // 방법 1: SlashCommandParser 직접 호출
-        const ctx = window.SillyTavern?.getContext?.();
-        const parser = ctx?.SlashCommandParser || window.SlashCommandParser;
-        
+        const parser = getSlashCommandParser();
         if (parser && parser.commands) {
             const sdCmd = parser.commands['sd'] || parser.commands['draw'] || parser.commands['imagine'];
             if (sdCmd && typeof sdCmd.callback === 'function') {
                 try {
-                    console.log('📸 [Instagram] SD 명령 실행 중...');
                     const result = await sdCmd.callback({ quiet: 'true' }, prompt);
                     if (result && typeof result === 'string') {
-                        console.log('📸 [Instagram] 이미지 생성 성공 (callback)');
                         return result;
                     }
                 } catch (e) {
-                    console.warn('[Instagram] sd.callback 실패:', e);
+                    console.warn("[Instagram] sd.callback 실패:", e);
                 }
             }
         }
 
-        // 방법 2: executeSlashCommands
-        const executeCmd = ctx?.executeSlashCommands || 
-                          ctx?.executeSlashCommandsWithOptions ||
-                          window.executeSlashCommands;
-        
+        const executeCmd = getExecuteSlashCommand();
         if (executeCmd) {
             try {
-                console.log('📸 [Instagram] executeSlashCommands 시도...');
                 const result = await executeCmd(`/sd quiet=true ${prompt}`);
                 if (result && result.pipe) {
-                    console.log('📸 [Instagram] 이미지 생성 성공 (pipe)');
                     return result.pipe;
                 }
                 if (typeof result === 'string') {
-                    console.log('📸 [Instagram] 이미지 생성 성공 (string)');
                     return result;
                 }
             } catch (e) {
-                console.warn('[Instagram] executeSlashCommands 실패:', e);
+                console.warn("[Instagram] executeSlashCommands 실패:", e);
             }
         }
 
-        console.error('[Instagram] 이미지 생성 실패 - SD 명령어를 실행할 수 없습니다');
-        return null;
+        throw new Error("이미지 생성 실패");
     }
 
-    // ========== 통합 맥락 판단 + 캡션 생성 ==========
-    async function checkContextAndGenerateCaption(charName, personality) {
+    // ========== 통합 AI 호출 (3회 → 1회) ==========
+    async function generatePostAllInOne(charName, personality) {
         const context = getRecentChatContext();
-        const template = getPrompt('contextAndPost');
-        const prompt = fillPrompt(template, { context, char: charName, personality });
+        const contact = getContactByName(charName);
+        const visualTags = contact?.tags || '';
         
-        const result = await generateWithAI(prompt, 250);
-        const answer = String(result || '').trim();
-        
-        const upperAnswer = answer.toUpperCase();
-        
-        // NO로 시작하면 포스팅하지 않음
-        if (upperAnswer.startsWith('NO')) {
-            return { shouldPost: false, caption: null };
+        const prompt = `You are ${charName}. Based on the recent chat context, decide if you would post on Instagram right now.
+
+### Context
+${context}
+
+### Your personality
+${personality}
+
+### Your visual tags for image generation
+${visualTags}
+
+### Task
+Respond in JSON format ONLY:
+{
+    "shouldPost": true or false,
+    "caption": "Instagram caption in Korean if posting",
+    "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
+}
+
+If the situation is not suitable for posting, set shouldPost to false.`;
+
+        try {
+            const result = await generateWithAI(prompt, 400);
+            const jsonMatch = String(result || '').match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                return {
+                    shouldPost: !!parsed.shouldPost,
+                    caption: parsed.caption || '',
+                    imagePrompt: parsed.imagePrompt || ''
+                };
+            }
+        } catch (e) {
+            console.warn('[Instagram] 통합 AI 호출 실패:', e);
         }
         
-        // YES로 시작하면 캡션 추출
-        if (upperAnswer.startsWith('YES')) {
-            let caption = answer.replace(/^YES[:\s]*/i, '').trim();
-            caption = caption.replace(/^\[|\]$/g, '').trim();
-            if (caption) return { shouldPost: true, caption };
-        }
-        
-        // 기타 응답은 캡션으로 간주 (3자 이상이고 NO가 포함되지 않은 경우)
-        if (answer.length > 3 && !upperAnswer.includes('NO')) {
-            return { shouldPost: true, caption: answer };
-        }
-        
-        return { shouldPost: false, caption: null };
+        return { shouldPost: false, caption: null, imagePrompt: null };
     }
 
     // ========== 프로액티브 포스트 ==========
@@ -849,13 +895,52 @@ Example output format:
 
         console.log(`📸 [Instagram] ${charName}의 프로액티브 포스트 체크...`);
 
-        const result = await checkContextAndGenerateCaption(charName, personality);
-        if (!result.shouldPost) {
-            console.log(`📸 [Instagram] ${charName} 포스팅 조건 불충족`);
-            return;
-        }
+        isGeneratingPost = true;
+        
+        try {
+            const result = await generatePostAllInOne(charName, personality);
+            
+            if (!result.shouldPost) {
+                console.log(`📸 [Instagram] ${charName} 포스팅 조건 불충족`);
+                return;
+            }
 
-        await generateCharacterPost(charName, result.caption);
+            // 이미지 생성
+            console.log(`📸 [Instagram] ${charName}의 이미지 생성 중...`);
+            let imageUrl = null;
+            
+            if (result.imagePrompt) {
+                try {
+                    imageUrl = await generateImage(result.imagePrompt);
+                } catch (e) {
+                    console.warn('[Instagram] 이미지 생성 실패:', e);
+                }
+            }
+
+            // 게시물 추가
+            loadPosts();
+            const newPost = {
+                id: Date.now(),
+                author: charName,
+                authorAvatar: getContactAvatar(charName),
+                imageUrl: imageUrl || '',
+                caption: result.caption,
+                timestamp: Date.now(),
+                likes: Math.floor(Math.random() * 50) + 10,
+                likedByUser: false,
+                comments: [],
+                isUser: false
+            };
+
+            posts.unshift(newPost);
+            savePosts();
+
+            addHiddenLog(charName, `[Instagram 포스팅] ${charName}가 Instagram에 게시물을 올렸습니다: "${result.caption}"`);
+            console.log(`📸 [Instagram] ${charName} 게시물 완료!`);
+            
+        } finally {
+            isGeneratingPost = false;
+        }
     }
 
     async function generateCharacterPost(charName, preGeneratedCaption = null) {
