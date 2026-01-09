@@ -1229,12 +1229,12 @@ Example output format:
             
             let imageUrl = null;
 
-            // 프롬프트가 있으면 이미지 생성
-            if (prompt) {
-                $btn.addClass('disabled').text('생성 중...');
-                $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
+            try {
+                // 프롬프트가 있으면 이미지 생성
+                if (prompt) {
+                    $btn.addClass('disabled').text('생성 중...');
+                    $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
 
-                try {
                     const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
                     imageUrl = await generateImage(detailedPrompt);
 
@@ -1244,26 +1244,20 @@ Example output format:
 
                     $preview.html(`<img src="${imageUrl}" alt="">`);
                     toastr.success('이미지 생성 완료! 게시 중...');
-                } catch (e) {
-                    $preview.html('<i class="fa-regular fa-image"></i><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">공유 시 자동 생성됩니다</div>');
-                    $btn.removeClass('disabled').text('공유');
-                    toastr.error('이미지 생성에 실패했습니다');
-                    return;
+                } else {
+                    // 이미지 없이 텍스트만 게시
+                    $btn.addClass('disabled').text('게시 중...');
                 }
-            } else {
-                // 이미지 없이 텍스트만 게시
-                $btn.addClass('disabled').text('게시 중...');
-            }
 
-            // 포스트 추가
-            const newPost = {
-                id: Date.now(),
-                author: user.name,
-                authorAvatar: user.avatar,
-                imageUrl: imageUrl || '',
-                caption: caption,
-                timestamp: Date.now(),
-                likes: 0,
+                // 포스트 추가
+                const newPost = {
+                    id: Date.now(),
+                    author: user.name,
+                    authorAvatar: user.avatar,
+                    imageUrl: imageUrl || '',
+                    caption: caption,
+                    timestamp: Date.now(),
+                    likes: 0,
                     likedByUser: false,
                     comments: [],
                     isUser: true
