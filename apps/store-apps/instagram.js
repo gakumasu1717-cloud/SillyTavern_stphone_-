@@ -45,9 +45,13 @@ window.STPhone.Apps.Instagram = (function() {
                 flex-shrink: 0;
             }
             .st-insta-logo {
-                font-family: 'Billabong', cursive, sans-serif;
-                font-size: 24px;
-                font-weight: 400;
+                font-family: 'Segoe Script', 'Dancing Script', cursive, sans-serif;
+                font-size: 26px;
+                font-weight: 600;
+                background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
             }
             .st-insta-header-icons {
                 display: flex;
@@ -1265,6 +1269,11 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         // 히든 로그
         addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
+
+        // 인스타그램 열려있으면 UI 새로고침
+        if ($('.st-insta-app').length) {
+            open();
+        }
         
         } catch (e) {
             console.error('[Instagram] 댓글 생성 실패:', e);
