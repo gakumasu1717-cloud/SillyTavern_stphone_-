@@ -747,7 +747,15 @@ Output format - ONLY the reply text:`
         }, 1000);
     }
 
-    setTimeout(initProactivePostListener, 3000);
+    // 앱이 설치되어 있을 때만 선제 포스트 리스너 초기화
+    setTimeout(() => {
+        const isInstalled = window.STPhone?.Apps?.Store?.isInstalled?.('instagram');
+        if (isInstalled) {
+            initProactivePostListener();
+        } else {
+            console.log(' [Instagram] 앱 미설치 - 선제 포스트 리스너 비활성화');
+        }
+    }, 3000);
 
     // ========== 게시물 삭제 / 상세보기 ==========
     function deletePost(postId) {
