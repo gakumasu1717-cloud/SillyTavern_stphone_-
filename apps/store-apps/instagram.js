@@ -56,7 +56,7 @@ Answer with ONLY "YES" or "NO" (one word only).`,
 1. You are {{char}} posting on Instagram.
 2. Generate ONLY the caption - no system text, no roleplay actions.
 3. Keep it natural and casual (1-3 sentences).
-4. Include hashtags if fitting {{char}}'s style.
+4. Do NOT include hashtags unless absolutely necessary. Keep it simple.
 
 ### Character Info
 - Name: {{char}}
