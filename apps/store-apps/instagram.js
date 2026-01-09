@@ -1852,28 +1852,103 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         if (!textDiv) return;
 
         const html = textDiv.innerHTML;
-        const postMatch = html.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+        const charName = msgNode.getAttribute('ch_name') || "Unknown";
+        let modified = false;
         
+        // 포스팅 패턴 감지
+        const postMatch = html.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
         if (postMatch) {
+            createPostFromChat(charName, postMatch[1]);
+            html = html.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '');
+            modified = true;
+        }
+        
+        // 답글 패턴 감지: [Instagram 답글] 캐릭터가 누구의 댓글에 답글을 남겼습니다: "내용"
+        const replyMatch = html.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
+        if (replyMatch) {
+            addReplyFromChat(charName, replyMatch[1]);
+            html = html.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '');
+            modified = true;
+        }
+        
+        if (modified) {
             msgNode.dataset.instagramChecked = "true";
-            
-            // Phone.js처럼 화면에서 태그 지우기
-            textDiv.innerHTML = html.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
-            
-            const charName = msgNode.getAttribute('ch_name') || "Unknown";
-            const caption = postMatch[1];
-            
-            createPostFromChat(charName, caption);
+            textDiv.innerHTML = html.trim();
         }
     }
 
-    // 채팅에서 인스타 포스팅 감지
+    // 채팅에서 인스타 포스팅/답글 감지
     function parseInstagramFromChat(charName, message) {
         if (!message) return;
         
         const postMatch = message.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
         if (postMatch) {
             createPostFromChat(charName, postMatch[1]);
+        }
+        
+        const replyMatch = message.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
+        if (replyMatch) {
+            addReplyFromChat(charName, replyMatch[1]);
+        }
+    }
+    
+    // 최근 답글 (중복 방지용)
+    let recentReplies = new Set();
+    
+    // 채팅 감지로 답글 추가
+    function addReplyFromChat(charName, replyText) {
+        // 중복 방지
+        const replyKey = `${charName}:${replyText}`;
+        if (recentReplies.has(replyKey)) return;
+        recentReplies.add(replyKey);
+        setTimeout(() => recentReplies.delete(replyKey), 5000);
+        
+        loadPosts();
+        
+        // 가장 최근 유저 댓글이 있는 게시물 찾기
+        let targetPost = null;
+        let latestCommentTime = 0;
+        
+        for (const post of posts) {
+            for (const comment of post.comments) {
+                // 유저 댓글 중 가장 최근 것
+                const user = getUserInfo();
+                if (comment.author === user.name && comment.id > latestCommentTime) {
+                    latestCommentTime = comment.id;
+                    targetPost = post;
+                }
+            }
+        }
+        
+        // 유저 댓글 없으면 캐릭터의 가장 최근 게시물에 답글
+        if (!targetPost) {
+            targetPost = posts.find(p => p.author.toLowerCase() === charName.toLowerCase());
+        }
+        
+        if (!targetPost) {
+            // 게시물 없으면 새 게시물 없이 그냥 리턴
+            return;
+        }
+        
+        // 답글 추가
+        targetPost.comments.push({
+            id: Date.now(),
+            author: charName,
+            authorAvatar: getContactAvatar(charName),
+            text: replyText,
+            timestamp: getRpTimestamp()
+        });
+        
+        savePosts();
+        
+        // 토스트 알림
+        if (window.toastr) {
+            toastr.info(`💬 ${charName}님이 댓글에 답글을 남겼습니다`, 'Instagram');
+        }
+        
+        // 인스타 열려있으면 새로고침
+        if ($('.st-insta-app').length) {
+            setTimeout(() => open(), 100);
         }
     }
 
@@ -1951,6 +2026,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         generateCharacterPost,
         checkProactivePost,
         createPostFromChat,
+        addReplyFromChat,
         loadPosts: () => { loadPosts(); return posts; },
         addComment: addUserComment
     };

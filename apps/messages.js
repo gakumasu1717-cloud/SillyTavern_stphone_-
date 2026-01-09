@@ -1274,16 +1274,26 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
 
             // Instagram 포스팅 패턴 감지 및 제거
             if (window.STPhone.Apps?.Instagram) {
+                const Instagram = window.STPhone.Apps.Instagram;
+                
                 const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
                 if (postMatch) {
-                    const Instagram = window.STPhone.Apps.Instagram;
                     if (typeof Instagram.createPostFromChat === 'function') {
                         Instagram.createPostFromChat(contactName, postMatch[1]);
                     }
-                    // 태그 제거
                     lineText = lineText.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
-                    if (!lineText) continue; // 태그만 있었으면 스킵
                 }
+                
+                // Instagram 답글 패턴 감지 및 제거
+                const replyMatch = lineText.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
+                if (replyMatch) {
+                    if (typeof Instagram.addReplyFromChat === 'function') {
+                        Instagram.addReplyFromChat(contactName, replyMatch[1]);
+                    }
+                    lineText = lineText.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
+                }
+                
+                if (!lineText) continue; // 태그만 있었으면 스킵
             }
 
             const calendarInstalled = window.STPhone?.Apps?.Store?.isInstalled?.('calendar');
@@ -3004,18 +3014,27 @@ Personality: ${settings.userPersonality || '(not specified)'}
                 let cleanMessage = message.trim();
                 if (!cleanMessage) continue;
 
-                // Instagram 포스팅 패턴 감지 및 제거
+                // Instagram 포스팅/답글 패턴 감지 및 제거
                 if (window.STPhone.Apps?.Instagram) {
+                    const Instagram = window.STPhone.Apps.Instagram;
+                    
                     const postMatch = cleanMessage.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
                     if (postMatch) {
-                        const Instagram = window.STPhone.Apps.Instagram;
                         if (typeof Instagram.createPostFromChat === 'function') {
                             Instagram.createPostFromChat(member.name, postMatch[1]);
                         }
-                        // 태그 제거
                         cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
-                        if (!cleanMessage) continue; // 태그만 있었으면 스킵
                     }
+                    
+                    const replyMatch = cleanMessage.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
+                    if (replyMatch) {
+                        if (typeof Instagram.addReplyFromChat === 'function') {
+                            Instagram.addReplyFromChat(member.name, replyMatch[1]);
+                        }
+                        cleanMessage = cleanMessage.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
+                    }
+                    
+                    if (!cleanMessage) continue;
                 }
 
                 // 텀을 두고 전송
