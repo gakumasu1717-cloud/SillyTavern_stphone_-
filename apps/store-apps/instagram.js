@@ -563,6 +563,45 @@ Output ONLY the comment text, no quotes.`
         return result;
     }
 
+    // ========== 캘린더 연동 ==========
+    function getCalendarInfo() {
+        const Calendar = window.STPhone.Apps?.Calendar;
+        const Store = window.STPhone.Apps?.Store;
+        
+        // 캘린더 앱이 설치되어 있고 활성화되어 있는지 확인
+        if (!Store?.isInstalled?.('calendar') || !Calendar?.isCalendarEnabled?.()) {
+            return null;
+        }
+        
+        const rpDate = Calendar.getRpDate?.();
+        if (!rpDate) return null;
+        
+        const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+        const dateObj = new Date(rpDate.year, rpDate.month - 1, rpDate.day);
+        const dayOfWeek = dayNames[dateObj.getDay()];
+        
+        return {
+            year: rpDate.year,
+            month: rpDate.month,
+            day: rpDate.day,
+            dayOfWeek,
+            formatted: `${rpDate.year}년 ${rpDate.month}월 ${rpDate.day}일 ${dayOfWeek}`,
+            timestamp: dateObj.getTime()
+        };
+    }
+
+    function getRpTimestamp() {
+        const calInfo = getCalendarInfo();
+        if (calInfo) {
+            // RP 날짜 기준 현재 시간으로 타임스탬프 생성
+            const now = new Date();
+            const rpDate = new Date(calInfo.year, calInfo.month - 1, calInfo.day, 
+                now.getHours(), now.getMinutes(), now.getSeconds());
+            return rpDate.getTime();
+        }
+        return Date.now();
+    }
+
     function getRecentChatContext(maxMessages = 15) {
         const ctx = window.SillyTavern?.getContext?.();
         if (!ctx?.chat) return '';
@@ -823,8 +862,25 @@ Example output format:
         const contact = getContactByName(charName);
         const visualTags = contact?.tags || '';
         
+        // 캘린더 정보 가져오기
+        const calInfo = getCalendarInfo();
+        const currentDate = calInfo?.formatted || new Date().toLocaleDateString('ko-KR');
+        
+        // 기념일 정보 가져오기
+        let eventsInfo = '';
+        const Calendar = window.STPhone.Apps?.Calendar;
+        if (Calendar?.getEventsOnlyPrompt) {
+            const eventsPrompt = Calendar.getEventsOnlyPrompt();
+            if (eventsPrompt) {
+                eventsInfo = '\n\n' + eventsPrompt;
+            }
+        }
+        
         // settings에서 템플릿 가져오기, 없으면 기본값 사용
         let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
+
+### Current Date
+{{currentDate}}{{eventsInfo}}
 
 ### Context
 {{context}}
@@ -848,6 +904,8 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         // 플레이스홀더 치환
         const prompt = promptTemplate
             .replace(/\{\{charName\}\}/g, charName)
+            .replace(/\{\{currentDate\}\}/g, currentDate)
+            .replace(/\{\{eventsInfo\}\}/g, eventsInfo)
             .replace(/\{\{context\}\}/g, context)
             .replace(/\{\{personality\}\}/g, personality)
             .replace(/\{\{visualTags\}\}/g, visualTags);
@@ -937,7 +995,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                 authorAvatar: getContactAvatar(charName),
                 imageUrl: imageUrl || '',
                 caption: result.caption,
-                timestamp: Date.now(),
+                timestamp: getRpTimestamp(),
                 likes: Math.floor(Math.random() * 50) + 10,
                 likedByUser: false,
                 comments: [],
@@ -1005,7 +1063,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                 authorAvatar: getContactAvatar(posterName),
                 imageUrl: imageUrl || 'https://via.placeholder.com/400x400?text=Photo',
                 caption: caption.trim(),
-                timestamp: Date.now(),
+                timestamp: getRpTimestamp(),
                 likes: Math.floor(Math.random() * 50) + 10,
                 likedByUser: false,
                 comments: [],
@@ -1082,7 +1140,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             author: charName,
             authorAvatar: getContactAvatar(charName),
             text: comment.trim(),
-            timestamp: Date.now()
+            timestamp: getRpTimestamp()
         });
 
         savePosts();
@@ -1372,7 +1430,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                     authorAvatar: user.avatar,
                     imageUrl: imageUrl || '',
                     caption: caption,
-                    timestamp: Date.now(),
+                    timestamp: getRpTimestamp(),
                     likes: 0,
                     likedByUser: false,
                     comments: [],
@@ -1438,7 +1496,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             author: user.name,
             authorAvatar: user.avatar,
             text: text,
-            timestamp: Date.now()
+            timestamp: getRpTimestamp()
         });
 
         savePosts();
@@ -1481,7 +1539,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             author: charName,
             authorAvatar: getContactAvatar(charName),
             text: reply.trim(),
-            timestamp: Date.now()
+            timestamp: getRpTimestamp()
         });
 
         savePosts();

@@ -195,6 +195,9 @@ Keep it under 50 words. Just the description, nothing else.`,
         // 통합 프롬프트 (상황판단 + 캡션 + 이미지프롬프트 한번에)
         instaAllInOnePrompt: `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
+### Current Date
+{{currentDate}}{{eventsInfo}}
+
 ### Context
 {{context}}
 
