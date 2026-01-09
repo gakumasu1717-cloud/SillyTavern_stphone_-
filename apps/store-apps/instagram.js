@@ -332,6 +332,40 @@ Output format - ONLY the reply text:`
         return null;
     }
 
+
+    // 카메라 앱과 동일한 외형 태그 기반 이미지 프롬프트 생성
+    async function generateDetailedPrompt(userInput, characterName) {
+        const parser = getSlashCommandParser();
+        if (!parser || !parser.commands) return userInput;
+
+        const genCmd = parser.commands['genraw'] || parser.commands['gen'];
+        if (!genCmd || typeof genCmd.callback !== 'function') return userInput;
+
+        try {
+            const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+            const userName = settings.userName || 'User';
+            const userTags = settings.userTags || '';
+
+            const allContacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
+            let visualLibrary = '### Visual Tag Library\n';
+            visualLibrary += '1. [' + userName + ' (User)]: ' + userTags + '\n';
+
+            let lineNumber = 2;
+            for (const contact of allContacts) {
+                if (!contact?.name || !contact?.tags) continue;
+                visualLibrary += lineNumber + '. [' + contact.name + ']: ' + contact.tags + '\n';
+                lineNumber++;
+            }
+
+            const aiInstruction = visualLibrary + '\n### Task\nUser request: "' + userInput + '"\nCharacter: ' + characterName + '\nBased on the Library, create a detailed image prompt using the character tags.\nExample output: <pic prompt="tags, comma, separated">';
+
+            const aiResponse = await genCmd.callback({ quiet: 'true' }, aiInstruction);
+            const match = String(aiResponse).match(/<pic[^>]*\sprompt="([^"]*)"[^>]*?>/i);
+            if (match && match[1]?.trim()) return match[1];
+        } catch (e) { console.warn('[Instagram] detailed prompt fail:', e); }
+
+        return userInput;
+    }
     function addHiddenLog(speaker, text) {
         if (window.STPhone.Apps?.Messages?.addHiddenLog) {
             window.STPhone.Apps.Messages.addHiddenLog(speaker, text);
@@ -680,7 +714,10 @@ Output format - ONLY the reply text:`
             if (caption?.trim()) {
                 const clean = caption.replace(/^["']|["']$/g, '').trim();
                 let imageUrl = null;
-                try { imageUrl = await generateImage(`${posterName} selfie or photo, ${clean.substring(0, 100)}`); } catch {}
+                try { 
+                    const detailedPrompt = await generateDetailedPrompt(`${posterName} selfie or photo, ${clean.substring(0, 100)}`, posterName);
+                    imageUrl = await generateImage(detailedPrompt);
+                } catch {}
 
                 const newPost = { id: Date.now(), author: posterName, authorAvatar: posterAvatar, imageUrl, caption: clean, timestamp: Date.now(), likes: Math.floor(Math.random() * 50) + 10, likedByUser: false, comments: [], isUser: false };
                 posts.unshift(newPost);
