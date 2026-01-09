@@ -1852,26 +1852,30 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         if (!textDiv) return;
 
         let html = textDiv.innerHTML;
-        const charName = msgNode.getAttribute('ch_name') || "Unknown";
+        const fallbackName = msgNode.getAttribute('ch_name') || "Unknown";
         let modified = false;
         
-        // 포스팅 패턴 감지 (여러 개 처리)
-        const postRegex = /\[Instagram 포스팅\][^"]*"([^"]+)"/gi;
+        // 포스팅 패턴 감지 (여러 개 처리) - 패턴에서 캐릭터 이름 추출
+        // [Instagram 포스팅] 짱돌이가 Instagram에 게시물을 올렸습니다: "캡션"
+        const postRegex = /\[Instagram 포스팅\]\s*([^\s가이]+)(?:가|이)\s*Instagram에[^"]*"([^"]+)"/gi;
         let postMatch;
         while ((postMatch = postRegex.exec(html)) !== null) {
-            createPostFromChat(charName, postMatch[1]);
+            const authorName = postMatch[1] || fallbackName;
+            createPostFromChat(authorName, postMatch[2]);
             modified = true;
         }
         if (modified) {
             html = html.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '');
         }
         
-        // 답글 패턴 감지 (여러 개 처리)
-        const replyRegex = /\[Instagram 답글\][^"]*"([^"]+)"/gi;
+        // 답글 패턴 감지 (여러 개 처리) - 패턴에서 캐릭터 이름 추출
+        // [Instagram 답글] 짱돌이가 ㄱ의 댓글에 답글을 남겼습니다: "내용"
+        const replyRegex = /\[Instagram 답글\]\s*([^\s가이]+)(?:가|이)[^"]*"([^"]+)"/gi;
         let replyMatch;
         let replyModified = false;
         while ((replyMatch = replyRegex.exec(html)) !== null) {
-            addReplyFromChat(charName, replyMatch[1]);
+            const authorName = replyMatch[1] || fallbackName;
+            addReplyFromChat(authorName, replyMatch[2]);
             replyModified = true;
         }
         if (replyModified) {
