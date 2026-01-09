@@ -774,9 +774,18 @@ Output ONLY the comment text, no quotes.`
         try { return JSON.stringify(raw); } catch { return String(raw); }
     }
 
+    // AI 응답에서 캘린더 날짜 패턴 제거
+    function stripCalendarDate(text) {
+        if (!text) return '';
+        return text.replace(/\[\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*(?:월|화|수|목|금|토|일)요일\]\s*/g, '').trim();
+    }
+
     async function generateWithAI(prompt, maxTokens = 150) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         const profileId = settings.connectionProfileId;
+
+        // 캘린더 프롬프트 주입 방지
+        window.STPhone.isPhoneGenerating = true;
 
         try {
             const context = window.SillyTavern?.getContext?.();
@@ -794,7 +803,7 @@ Output ONLY the comment text, no quotes.`
                         {},
                         { max_tokens: maxTokens }
                     );
-                    const output = normalizeModelOutput(result).trim();
+                    const output = stripCalendarDate(normalizeModelOutput(result).trim());
                     console.log('[Instagram] AI 응답:', output.substring(0, 100) + '...');
                     return output;
                 }
@@ -806,7 +815,7 @@ Output ONLY the comment text, no quotes.`
             if (genCmd?.callback) {
                 console.log('[Instagram] genraw로 AI 호출...');
                 const result = await genCmd.callback({ quiet: true, hidden: true }, prompt);
-                const output = String(result || '').trim();
+                const output = stripCalendarDate(String(result || '').trim());
                 console.log('[Instagram] AI 응답:', output.substring(0, 100) + '...');
                 return output;
             }
@@ -816,6 +825,9 @@ Output ONLY the comment text, no quotes.`
         } catch (e) {
             console.error('[Instagram] AI 생성 실패:', e);
             return null;
+        } finally {
+            // 플래그 해제
+            window.STPhone.isPhoneGenerating = false;
         }
     }
 
