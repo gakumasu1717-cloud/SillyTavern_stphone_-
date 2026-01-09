@@ -1932,6 +1932,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     function checkMessageForInstagram(msgNode) {
         if (msgNode.dataset.instagramChecked) return;
         if (msgNode.getAttribute('is_user') === 'true') return;
+        // 📩 패턴으로 숨겨진 메시지는 스킵 (index.js에서 이미 처리됨)
+        if (msgNode.classList.contains('st-phone-hidden-log') || msgNode.style.display === 'none') return;
 
         const textDiv = msgNode.querySelector('.mes_text');
         if (!textDiv) return;
