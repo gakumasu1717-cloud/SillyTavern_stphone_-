@@ -539,6 +539,12 @@ Output ONLY the comment text, no quotes.`
     };
 
     // ========== 유틸리티 함수 ==========
+    function stripDateTag(text) {
+        if (!text) return '';
+        // AI 응답에서 날짜 태그 제거: [2024년 5월 22일 수요일]
+        return text.replace(/^\[\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*[^다-힐]+요일\]\s*/i, '').trim();
+    }
+
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -1193,20 +1199,21 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         const comment = await generateWithAI(commentPrompt, 100);
         if (!comment?.trim()) return;
 
-        // 댓글 추가
+        // 댓글 추가 (날짜 태그 제거)
+        const cleanComment = stripDateTag(comment.trim());
         post.comments.push({
             id: Date.now(),
             author: charName,
             authorAvatar: getContactAvatar(charName),
-            text: comment.trim(),
+            text: cleanComment,
             timestamp: getRpTimestamp()
         });
 
         savePosts();
-        console.log(`💬 [Instagram] ${charName}의 댓글: ${comment}`);
+        console.log(`💬 [Instagram] ${charName}의 댓글: ${cleanComment}`);
 
         // 히든 로그
-        addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${comment.trim()}"`);
+        addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
     }
 
     // ========== 히든 로그 ==========
@@ -1703,16 +1710,18 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         const reply = await generateWithAI(prompt, 80);
         if (!reply?.trim()) return;
 
+        // 답글 추가 (날짜 태그 제거)
+        const cleanReply = stripDateTag(reply.trim());
         post.comments.push({
             id: Date.now(),
             author: charName,
             authorAvatar: getContactAvatar(charName),
-            text: reply.trim(),
+            text: cleanReply,
             timestamp: getRpTimestamp()
         });
 
         savePosts();
-        addHiddenLog(charName, `[Instagram 답글] ${charName}가 ${commenterName}의 댓글에 답글을 남겼습니다: "${reply.trim()}"`);
+        addHiddenLog(charName, `[Instagram 답글] ${charName}가 ${commenterName}의 댓글에 답글을 남겼습니다: "${cleanReply}"`);
     }
 
     function openProfile(name) {
