@@ -1272,26 +1272,29 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             let lineText = lines[i].trim();
             if (!lineText) continue;
 
-            // Instagram 포스팅 패턴 감지 및 제거
+            // Instagram 포스팅/답글 패턴 감지 및 제거 (여러 개 처리)
             if (window.STPhone.Apps?.Instagram) {
                 const Instagram = window.STPhone.Apps.Instagram;
                 
-                const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
-                if (postMatch) {
+                // 포스팅 패턴 (여러 개)
+                const postRegex = /\[Instagram 포스팅\][^"]*"([^"]+)"/gi;
+                let postMatch;
+                while ((postMatch = postRegex.exec(lineText)) !== null) {
                     if (typeof Instagram.createPostFromChat === 'function') {
                         Instagram.createPostFromChat(contactName, postMatch[1]);
                     }
-                    lineText = lineText.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
                 }
+                lineText = lineText.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
                 
-                // Instagram 답글 패턴 감지 및 제거
-                const replyMatch = lineText.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
-                if (replyMatch) {
+                // 답글 패턴 (여러 개)
+                const replyRegex = /\[Instagram 답글\][^"]*"([^"]+)"/gi;
+                let replyMatch;
+                while ((replyMatch = replyRegex.exec(lineText)) !== null) {
                     if (typeof Instagram.addReplyFromChat === 'function') {
                         Instagram.addReplyFromChat(contactName, replyMatch[1]);
                     }
-                    lineText = lineText.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
                 }
+                lineText = lineText.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
                 
                 if (!lineText) continue; // 태그만 있었으면 스킵
             }
@@ -3014,25 +3017,29 @@ Personality: ${settings.userPersonality || '(not specified)'}
                 let cleanMessage = message.trim();
                 if (!cleanMessage) continue;
 
-                // Instagram 포스팅/답글 패턴 감지 및 제거
+                // Instagram 포스팅/답글 패턴 감지 및 제거 (여러 개 처리)
                 if (window.STPhone.Apps?.Instagram) {
                     const Instagram = window.STPhone.Apps.Instagram;
                     
-                    const postMatch = cleanMessage.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
-                    if (postMatch) {
+                    // 포스팅 패턴 (여러 개)
+                    const postRegex = /\[Instagram 포스팅\][^"]*"([^"]+)"/gi;
+                    let postMatch;
+                    while ((postMatch = postRegex.exec(cleanMessage)) !== null) {
                         if (typeof Instagram.createPostFromChat === 'function') {
                             Instagram.createPostFromChat(member.name, postMatch[1]);
                         }
-                        cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
                     }
+                    cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
                     
-                    const replyMatch = cleanMessage.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
-                    if (replyMatch) {
+                    // 답글 패턴 (여러 개)
+                    const replyRegex = /\[Instagram 답글\][^"]*"([^"]+)"/gi;
+                    let replyMatch;
+                    while ((replyMatch = replyRegex.exec(cleanMessage)) !== null) {
                         if (typeof Instagram.addReplyFromChat === 'function') {
                             Instagram.addReplyFromChat(member.name, replyMatch[1]);
                         }
-                        cleanMessage = cleanMessage.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
                     }
+                    cleanMessage = cleanMessage.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
                     
                     if (!cleanMessage) continue;
                 }

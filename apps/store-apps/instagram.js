@@ -1846,27 +1846,35 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     function checkMessageForInstagram(msgNode) {
         if (msgNode.dataset.instagramChecked) return;
         if (msgNode.getAttribute('is_user') === 'true') return;
-        if (!msgNode.classList.contains('last_mes')) return;
+        // last_mes 체크 제거 - 모든 AI 메시지 감지
 
         const textDiv = msgNode.querySelector('.mes_text');
         if (!textDiv) return;
 
-        const html = textDiv.innerHTML;
+        let html = textDiv.innerHTML;
         const charName = msgNode.getAttribute('ch_name') || "Unknown";
         let modified = false;
         
-        // 포스팅 패턴 감지
-        const postMatch = html.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
-        if (postMatch) {
+        // 포스팅 패턴 감지 (여러 개 처리)
+        const postRegex = /\[Instagram 포스팅\][^"]*"([^"]+)"/gi;
+        let postMatch;
+        while ((postMatch = postRegex.exec(html)) !== null) {
             createPostFromChat(charName, postMatch[1]);
-            html = html.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '');
             modified = true;
         }
+        if (modified) {
+            html = html.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '');
+        }
         
-        // 답글 패턴 감지: [Instagram 답글] 캐릭터가 누구의 댓글에 답글을 남겼습니다: "내용"
-        const replyMatch = html.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
-        if (replyMatch) {
+        // 답글 패턴 감지 (여러 개 처리)
+        const replyRegex = /\[Instagram 답글\][^"]*"([^"]+)"/gi;
+        let replyMatch;
+        let replyModified = false;
+        while ((replyMatch = replyRegex.exec(html)) !== null) {
             addReplyFromChat(charName, replyMatch[1]);
+            replyModified = true;
+        }
+        if (replyModified) {
             html = html.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '');
             modified = true;
         }
