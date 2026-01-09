@@ -1276,7 +1276,25 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             if (window.STPhone.Apps?.Instagram) {
                 const Instagram = window.STPhone.Apps.Instagram;
                 
-                // 포스팅 패턴 - 있을 때만 처리
+                // 새 패턴: (Instagram: "캡션")
+                if (lineText.includes('(Instagram:')) {
+                    const postMatch = lineText.match(/\(Instagram:\s*"([^"]+)"\)/i);
+                    if (postMatch && typeof Instagram.createPostFromChat === 'function') {
+                        Instagram.createPostFromChat(contactName, postMatch[1]);
+                    }
+                    lineText = lineText.replace(/\(Instagram:\s*"[^"]+"\)/gi, '').trim();
+                }
+                
+                // 새 패턴: (Instagram Reply: "답글")
+                if (lineText.includes('(Instagram Reply:')) {
+                    const replyMatch = lineText.match(/\(Instagram Reply:\s*"([^"]+)"\)/i);
+                    if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
+                        Instagram.addReplyFromChat(contactName, replyMatch[1]);
+                    }
+                    lineText = lineText.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '').trim();
+                }
+                
+                // 기존 패턴들도 유지 (하위 호환)
                 if (lineText.includes('[Instagram 포스팅]')) {
                     const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
                     if (postMatch && typeof Instagram.createPostFromChat === 'function') {
@@ -1285,7 +1303,6 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                     lineText = lineText.replace(/\[Instagram 포스팅\][^\n]*/gi, '').trim();
                 }
                 
-                // 답글 패턴 - 있을 때만 처리
                 if (lineText.includes('[Instagram 답글]')) {
                     const replyMatch = lineText.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
                     if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
@@ -3024,7 +3041,25 @@ Personality: ${settings.userPersonality || '(not specified)'}
                 if (window.STPhone.Apps?.Instagram) {
                     const Instagram = window.STPhone.Apps.Instagram;
                     
-                    // 포스팅 패턴 - 있을 때만 처리
+                    // 새 패턴: (Instagram: "캡션")
+                    if (cleanMessage.includes('(Instagram:')) {
+                        const postMatch = cleanMessage.match(/\(Instagram:\s*"([^"]+)"\)/i);
+                        if (postMatch && typeof Instagram.createPostFromChat === 'function') {
+                            Instagram.createPostFromChat(member.name, postMatch[1]);
+                        }
+                        cleanMessage = cleanMessage.replace(/\(Instagram:\s*"[^"]+"\)/gi, '').trim();
+                    }
+                    
+                    // 새 패턴: (Instagram Reply: "답글")
+                    if (cleanMessage.includes('(Instagram Reply:')) {
+                        const replyMatch = cleanMessage.match(/\(Instagram Reply:\s*"([^"]+)"\)/i);
+                        if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
+                            Instagram.addReplyFromChat(member.name, replyMatch[1]);
+                        }
+                        cleanMessage = cleanMessage.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '').trim();
+                    }
+                    
+                    // 기존 패턴들도 유지 (하위 호환)
                     if (cleanMessage.includes('[Instagram 포스팅]')) {
                         const postMatch = cleanMessage.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
                         if (postMatch && typeof Instagram.createPostFromChat === 'function') {
@@ -3033,7 +3068,6 @@ Personality: ${settings.userPersonality || '(not specified)'}
                         cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^\n]*/gi, '').trim();
                     }
                     
-                    // 답글 패턴 - 있을 때만 처리
                     if (cleanMessage.includes('[Instagram 답글]')) {
                         const replyMatch = cleanMessage.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
                         if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
@@ -3083,7 +3117,8 @@ Personality: ${settings.userPersonality || '(not specified)'}
         if (settings.smsSystemPrompt) {
             return settings.smsSystemPrompt;
         }
-        return `[System] You are {{char}} texting {{user}}. Stay in character.
+        
+        let basePrompt = `[System] You are {{char}} texting {{user}}. Stay in character.
 - Write SMS-style: short, casual, multiple messages separated by line breaks
 - No narration, no prose, no quotation marks
 - DO NOT use flowery language. DO NOT output character name prefix.
@@ -3100,10 +3135,27 @@ To start a voice call, append [call to user] at the very end.
 NEVER decide {{user}}'s reaction. Just generate the tag and stop.
 
 ### ↩️ REPLY TO MESSAGE
-To reply to the user's last message specifically, prepend [REPLY] at the start of your message.
+To reply to the user's last message specifically, prepend [REPLY] at the start of your message.`;
+
+        // 인스타그램 설치되어 있으면 관련 지침 추가
+        const isInstagramInstalled = window.STPhone?.Apps?.Store?.isInstalled?.('instagram');
+        if (isInstagramInstalled) {
+            basePrompt += `
+
+### 📸 INSTAGRAM
+When posting to Instagram, write your normal reply first, then add on a NEW LINE:
+(Instagram: "캡션 내용 #해시태그")
+
+When replying to user's Instagram comment, add on a NEW LINE:
+(Instagram Reply: "답글 내용")`;
+        }
+
+        basePrompt += `
 
 ### OUTPUT
 Write the next SMS response only. No prose. No quotation marks. No character name prefix.`;
+
+        return basePrompt;
     }
 
 // ========== 번역 기능 (SillyTavern 백엔드 API 사용) ==========

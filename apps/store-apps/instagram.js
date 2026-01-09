@@ -1897,6 +1897,17 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         let html = textDiv.innerHTML;
         let modified = false;
         
+        // 새 패턴
+        if (html.includes('(Instagram:')) {
+            html = html.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
+            modified = true;
+        }
+        if (html.includes('(Instagram Reply:')) {
+            html = html.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
+            modified = true;
+        }
+        
+        // 기존 패턴
         if (html.includes('[Instagram 포스팅]')) {
             html = html.replace(/\[Instagram 포스팅\][^\n<]*/gi, '');
             modified = true;
@@ -1929,7 +1940,27 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         const fallbackName = msgNode.getAttribute('ch_name') || "Unknown";
         let modified = false;
         
-        // 포스팅 패턴 - 있을 때만 처리
+        // 새 패턴: (Instagram: "캡션")
+        if (html.includes('(Instagram:')) {
+            const postMatch = html.match(/\(Instagram:\s*"([^"]+)"\)/i);
+            if (postMatch) {
+                createPostFromChat(fallbackName, postMatch[1]);
+            }
+            html = html.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
+            modified = true;
+        }
+        
+        // 새 패턴: (Instagram Reply: "답글")
+        if (html.includes('(Instagram Reply:')) {
+            const replyMatch = html.match(/\(Instagram Reply:\s*"([^"]+)"\)/i);
+            if (replyMatch) {
+                addReplyFromChat(fallbackName, replyMatch[1]);
+            }
+            html = html.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
+            modified = true;
+        }
+        
+        // 기존 패턴들도 유지 (하위 호환)
         if (html.includes('[Instagram 포스팅]')) {
             const postMatch = html.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
             if (postMatch) {
@@ -1939,7 +1970,6 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             modified = true;
         }
         
-        // 답글 패턴 - 있을 때만 처리
         if (html.includes('[Instagram 답글]')) {
             const replyMatch = html.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
             if (replyMatch) {
