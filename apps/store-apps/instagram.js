@@ -1,4 +1,4 @@
-window.STPhone = window.STPhone || {};
+﻿window.STPhone = window.STPhone || {};
 window.STPhone.Apps = window.STPhone.Apps || {};
 
 window.STPhone.Apps.Instagram = (function() {
@@ -540,6 +540,11 @@ Example output format:
     `;
 
     const DEFAULT_AVATAR = 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png';
+    // ========== 최적화 변수 ==========
+    let saveTimer = null;
+    let cssInjected = false;
+    let lastLoadedChatId = null;
+
     let posts = [];
     let currentTab = 'feed';
 
@@ -551,11 +556,15 @@ Example output format:
     }
 
     function loadPosts() {
+        const ctx = window.SillyTavern?.getContext?.();
+        const currentChatId = ctx?.chatId;
+        if (currentChatId && currentChatId === lastLoadedChatId && posts.length > 0) return;
         const key = getStorageKey();
-        if (!key) { posts = []; return; }
+        if (!key) { posts = []; lastLoadedChatId = null; return; }
         try {
             posts = JSON.parse(localStorage.getItem(key) || '[]');
-        } catch (e) { posts = []; }
+            lastLoadedChatId = currentChatId;
+        } catch (e) { posts = []; lastLoadedChatId = null; }
     }
 
     function savePosts() {
@@ -566,6 +575,12 @@ Example output format:
         } catch (e) {
             console.error('[Instagram] 저장 실패:', e);
         }
+    }
+
+    // Debounce 저장 (300ms)
+    function debouncedSavePosts(delay = 300) {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => savePosts(), delay);
     }
 
     // ========== 유틸리티 ==========
@@ -1041,7 +1056,7 @@ Example output format:
         post.likes = (post.likes || 0) + (post.likedByUser ? 1 : -1);
         if (post.likes < 0) post.likes = 0;
         
-        savePosts();
+        debouncedSavePosts();
         
         // UI 업데이트
         const $btn = $(`[data-action="like"][data-post-id="${postId}"]`);
@@ -1081,7 +1096,7 @@ Example output format:
             isUser: true
         };
         post.comments.push(myComment);
-        savePosts();
+        debouncedSavePosts();
 
         // 히스토리 로그
         addHiddenLog(userName, `[📸 Instagram] ${userName}님이 ${post.author}의 게시물에 댓글을 남겼습니다: "${text}"`);
@@ -1138,7 +1153,7 @@ Example output format:
                     replyTo: userComment.author
                 };
                 post.comments.push(aiComment);
-                savePosts();
+                debouncedSavePosts();
 
                 // 히스토리 로그
                 addHiddenLog(post.author, `[📸 Instagram] ${post.author}님이 ${userComment.author}의 댓글에 답글을 남겼습니다: "${cleanReply}"`);
@@ -1181,7 +1196,7 @@ Example output format:
     // ========== 새 글 작성 ==========
     function openNewPostModal() {
         const $app = $('.st-insta-app');
-        
+
         const modalHtml = `
             <div class="st-insta-new-post" id="st-insta-new-modal">
                 <div class="st-insta-new-header">
@@ -1192,60 +1207,21 @@ Example output format:
                 <div class="st-insta-new-content">
                     <div class="st-insta-new-image-area" id="st-insta-image-area">
                         <div class="st-insta-new-image-placeholder">
-                            <i class="fa-regular fa-image"></i>
-                            <div>이미지 URL을 입력하거나</div>
-                            <div style="font-size:12px;margin-top:4px;">AI 자동 생성을 사용하세요</div>
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <div>AI가 이미지를 생성합니다</div>
                         </div>
                     </div>
-                    <input type="text" class="st-insta-image-url-input" id="st-insta-image-url" placeholder="이미지 URL (선택사항)">
                     
-                    <div style="display:flex;align-items:center;gap:10px;padding:5px 0;">
-                        <input type="checkbox" id="st-insta-auto-image" style="width:18px;height:18px;">
-                        <label for="st-insta-auto-image" style="font-size:14px;color:var(--pt-text-color,#262626);">
-                            🎨 AI로 이미지 자동 생성 (캡션 기반)
-                        </label>
-                    </div>
+                    <input type="text" class="st-insta-image-url-input" id="st-insta-image-prompt" 
+                        placeholder=" 이미지 프롬프트 (예: 카페에서 커피 마시는 모습)">
                     
-                    <textarea class="st-insta-new-caption" id="st-insta-caption" placeholder="문구 입력..."></textarea>
+                    <textarea class="st-insta-new-caption" id="st-insta-caption" 
+                        placeholder="문구 입력..."></textarea>
                 </div>
             </div>
         `;
-        
+
         $app.append(modalHtml);
-
-        // 이미지 URL 미리보기
-        $('#st-insta-image-url').on('input', function() {
-            const url = $(this).val().trim();
-            const $area = $('#st-insta-image-area');
-            
-            if (url) {
-                $area.addClass('has-image').html(`<img src="${url}" alt="preview">`);
-                $('#st-insta-auto-image').prop('checked', false); // 수동 URL 입력시 자동생성 해제
-            } else {
-                $area.removeClass('has-image').html(`
-                    <div class="st-insta-new-image-placeholder">
-                        <i class="fa-regular fa-image"></i>
-                        <div>이미지 URL을 입력하거나</div>
-                        <div style="font-size:12px;margin-top:4px;">AI 자동 생성을 사용하세요</div>
-                    </div>
-                `);
-            }
-        });
-
-        // 자동 생성 체크시 URL 입력 비활성화
-        $('#st-insta-auto-image').on('change', function() {
-            if ($(this).prop('checked')) {
-                $('#st-insta-image-url').val('').prop('disabled', true);
-                $('#st-insta-image-area').removeClass('has-image').html(`
-                    <div class="st-insta-new-image-placeholder">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
-                        <div style="color:#0095f6;">AI가 이미지를 생성합니다</div>
-                    </div>
-                `);
-            } else {
-                $('#st-insta-image-url').prop('disabled', false);
-            }
-        });
 
         // 닫기
         $('#st-insta-new-close').on('click', () => {
@@ -1254,36 +1230,34 @@ Example output format:
 
         // 공유
         $('#st-insta-share-btn').on('click', async () => {
-            const imageUrl = $('#st-insta-image-url').val().trim();
+            const imagePrompt = $('#st-insta-image-prompt').val().trim();
             const caption = $('#st-insta-caption').val().trim();
-            const autoGenerateImage = $('#st-insta-auto-image').prop('checked');
-            
-            if (!caption && !imageUrl && !autoGenerateImage) {
-                toastr.warning('내용이나 이미지를 입력해주세요');
+
+            if (!caption && !imagePrompt) {
+                toastr.warning('게시글이나 이미지 프롬프트를 입력해주세요');
                 return;
             }
 
             $('#st-insta-share-btn').prop('disabled', true).text('업로드 중...');
 
-            await createPost(imageUrl, caption, autoGenerateImage);
+            await createPost('', caption, imagePrompt);
             $('#st-insta-new-modal').remove();
         });
     }
 
     // ========== 게시물 생성 ==========
-    async function createPost(imageUrl, caption, autoGenerateImage = false) {
+    async function createPost(imageUrl, caption, imagePromptText = '') {
         const userName = getUserName();
         const userAvatar = getUserAvatar();
 
-        // 이미지 URL이 없고 자동 생성이 활성화된 경우
+        // 이미지 프롬프트가 있으면 AI 이미지 생성
         let finalImageUrl = imageUrl;
-        if (!finalImageUrl && caption && autoGenerateImage) {
+        if (!finalImageUrl && imagePromptText) {
             try {
                 toastr.info('🎨 이미지 생성 중...');
-                const imagePrompt = await generateImagePrompt(caption);
-                finalImageUrl = await generateImage(imagePrompt);
+                finalImageUrl = await generateImage(imagePromptText);
             } catch (e) {
-                console.warn('[Instagram] 이미지 자동 생성 실패:', e);
+                console.warn('[Instagram] 이미지 생성 실패:', e);
             }
         }
 
@@ -1301,7 +1275,7 @@ Example output format:
         };
 
         posts.unshift(newPost);
-        savePosts();
+        debouncedSavePosts();
 
         // 히스토리 로그
         addHiddenLog(userName, `[📸 Instagram] ${userName}님이 새 게시물을 올렸습니다: "${caption || '(사진 게시물)'}"`);
@@ -1344,7 +1318,7 @@ Example output format:
                 addHiddenLog(reactor.name, `[📸 Instagram] ${reactor.name}님이 ${post.author}의 게시물에 좋아요를 눌렀습니다.`);
             }
         }
-        savePosts();
+        debouncedSavePosts();
 
         // 메인 캐릭터의 댓글 생성 - 인스타그램 전용 프롬프트 사용
         try {
@@ -1369,7 +1343,7 @@ Example output format:
                     isUser: false
                 };
                 post.comments.push(aiComment);
-                savePosts();
+                debouncedSavePosts();
 
                 // 히스토리 로그
                 addHiddenLog(charInfo.name, `[📸 Instagram] ${charInfo.name}님이 ${post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
@@ -1426,7 +1400,7 @@ Example output format:
                 };
 
                 posts.unshift(newPost);
-                savePosts();
+                debouncedSavePosts();
 
                 // 히스토리 로그
                 addHiddenLog(charInfo.name, `[📸 Instagram] ${charInfo.name}님이 새 게시물을 올렸습니다: "${cleanCaption}"`);
@@ -1447,7 +1421,7 @@ Example output format:
 
         const post = posts[idx];
         posts.splice(idx, 1);
-        savePosts();
+        debouncedSavePosts();
 
         const userName = getUserName();
         addHiddenLog(userName, `[📸 Instagram] ${userName}님이 게시물을 삭제했습니다.`);
