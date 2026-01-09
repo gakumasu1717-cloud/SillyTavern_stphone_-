@@ -743,8 +743,6 @@ Output ONLY the comment text, no quotes.`
         let currentTokens = 0;
 
         for (const m of reverseChat) {
-            if (m.extra?.is_phone_log || m.extra?.isSmallSys) continue; // 폰 로그 제외
-            
             const msgContent = m.mes || '';
             if (!msgContent.trim()) continue;
             
