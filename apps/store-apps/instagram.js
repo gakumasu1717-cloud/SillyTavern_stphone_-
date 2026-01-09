@@ -76,23 +76,23 @@ window.STPhone.Apps.Instagram = (function() {
                 position: absolute;
                 bottom: 80px;
                 right: 20px;
-                width: 56px;
-                height: 56px;
+                width: 50px;
+                height: 50px;
                 border-radius: 50%;
-                background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af, #515bd4);
+                background: linear-gradient(135deg, rgba(245,133,41,0.85), rgba(221,42,123,0.85), rgba(129,52,175,0.85));
                 color: white;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 24px;
+                font-size: 22px;
                 cursor: pointer;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
                 z-index: 1000;
                 transition: transform 0.2s, box-shadow 0.2s;
             }
             .st-insta-fab:hover {
-                transform: scale(1.1);
-                box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+                transform: scale(1.05);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             }
             .st-insta-fab:active {
                 transform: scale(0.95);
@@ -754,43 +754,52 @@ Example output format:
     }
 
     async function generateImage(prompt) {
-        return new Promise((resolve) => {
-            const ctx = window.SillyTavern?.getContext?.();
-            if (!ctx) {
-                resolve(null);
-                return;
+        console.log('📸 [Instagram] 이미지 생성 시작:', prompt);
+        
+        // 방법 1: SlashCommandParser 직접 호출
+        const ctx = window.SillyTavern?.getContext?.();
+        const parser = ctx?.SlashCommandParser || window.SlashCommandParser;
+        
+        if (parser && parser.commands) {
+            const sdCmd = parser.commands['sd'] || parser.commands['draw'] || parser.commands['imagine'];
+            if (sdCmd && typeof sdCmd.callback === 'function') {
+                try {
+                    console.log('📸 [Instagram] SD 명령 실행 중...');
+                    const result = await sdCmd.callback({ quiet: 'true' }, prompt);
+                    if (result && typeof result === 'string') {
+                        console.log('📸 [Instagram] 이미지 생성 성공 (callback)');
+                        return result;
+                    }
+                } catch (e) {
+                    console.warn('[Instagram] sd.callback 실패:', e);
+                }
             }
+        }
 
-            const timeout = setTimeout(() => {
-                console.warn('[Instagram] 이미지 생성 타임아웃');
-                resolve(null);
-            }, 120000);
-
-            // SD 이벤트 리스너
-            const handler = (url) => {
-                clearTimeout(timeout);
-                resolve(url);
-            };
-
-            if (ctx.eventSource) {
-                ctx.eventSource.once('sd_generation_done', handler);
-            } else if (window.eventSource) {
-                window.eventSource.once('sd_generation_done', handler);
-            }
-
-            // SD 명령어 실행
+        // 방법 2: executeSlashCommands
+        const executeCmd = ctx?.executeSlashCommands || 
+                          ctx?.executeSlashCommandsWithOptions ||
+                          window.executeSlashCommands;
+        
+        if (executeCmd) {
             try {
-                const parser = ctx.SlashCommandParser || window.SlashCommandParser;
-                const sdCmd = parser?.commands?.['sd'] || parser?.commands?.['draw'];
-                if (sdCmd?.callback) {
-                    sdCmd.callback({ quiet: 'true' }, prompt);
+                console.log('📸 [Instagram] executeSlashCommands 시도...');
+                const result = await executeCmd(`/sd quiet=true ${prompt}`);
+                if (result && result.pipe) {
+                    console.log('📸 [Instagram] 이미지 생성 성공 (pipe)');
+                    return result.pipe;
+                }
+                if (typeof result === 'string') {
+                    console.log('📸 [Instagram] 이미지 생성 성공 (string)');
+                    return result;
                 }
             } catch (e) {
-                console.error('[Instagram] SD 명령 실패:', e);
-                clearTimeout(timeout);
-                resolve(null);
+                console.warn('[Instagram] executeSlashCommands 실패:', e);
             }
-        });
+        }
+
+        console.error('[Instagram] 이미지 생성 실패 - SD 명령어를 실행할 수 없습니다');
+        return null;
     }
 
     // ========== 통합 맥락 판단 + 캡션 생성 ==========
@@ -1213,6 +1222,14 @@ Example output format:
             $('#st-insta-create').remove();
         });
 
+        // 엔터키로 공유
+        $('#st-insta-create-prompt, #st-insta-create-caption').off('keydown').on('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                $('#st-insta-create-share').click();
+            }
+        });
+
         // 공유 (이미지 생성 + 게시 자동)
         $('#st-insta-create-share').off('click').on('click', async function() {
             const prompt = $('#st-insta-create-prompt').val().trim();
@@ -1235,8 +1252,8 @@ Example output format:
                     $btn.addClass('disabled').text('생성 중...');
                     $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
 
-                    const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
-                    imageUrl = await generateImage(detailedPrompt);
+                    // 바로 이미지 생성 (프롬프트 상세화 건너뛰기)
+                    imageUrl = await generateImage(prompt);
 
                     if (!imageUrl) {
                         throw new Error('이미지 생성 실패');
