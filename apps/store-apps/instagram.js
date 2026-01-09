@@ -1088,11 +1088,12 @@ Example output format:
                 <div class="st-insta-create-header">
                     <span class="st-insta-create-cancel" id="st-insta-create-cancel">✕</span>
                     <span class="st-insta-create-title">새 게시물</span>
-                    <span class="st-insta-create-next disabled" id="st-insta-create-share">공유</span>
+                    <span class="st-insta-create-next" id="st-insta-create-share">공유</span>
                 </div>
                 <div class="st-insta-create-content" style="overflow-y: auto;">
                     <div class="st-insta-create-preview" id="st-insta-create-preview">
                         <i class="fa-regular fa-image"></i>
+                        <div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">공유 시 자동 생성됩니다</div>
                     </div>
                     
                     <div style="background: var(--pt-card-bg, #fff); border-radius: 12px; padding: 14px; margin-bottom: 12px;">
@@ -1102,9 +1103,6 @@ Example output format:
                         <textarea class="st-insta-create-prompt" id="st-insta-create-prompt" 
                                   placeholder="예: 카페에서 커피 마시는 셀카, 창밖 비오는 날씨"
                                   style="min-height: 60px;"></textarea>
-                        <button class="st-insta-create-btn" id="st-insta-generate-btn" style="margin-top: 10px;">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> 이미지 생성
-                        </button>
                     </div>
                     
                     <div style="background: var(--pt-card-bg, #fff); border-radius: 12px; padding: 14px;">
@@ -1167,92 +1165,79 @@ Example output format:
     }
 
     function attachCreateListeners() {
-        let generatedImageUrl = null;
-
         // 취소
         $('#st-insta-create-cancel').off('click').on('click', function() {
             $('#st-insta-create').remove();
         });
 
-        // 이미지 생성
-        $('#st-insta-generate-btn').off('click').on('click', async function() {
+        // 공유 (이미지 생성 + 게시 자동)
+        $('#st-insta-create-share').off('click').on('click', async function() {
             const prompt = $('#st-insta-create-prompt').val().trim();
+            const caption = $('#st-insta-create-caption').val().trim() || '📸';
+            const user = getUserInfo();
+
             if (!prompt) {
-                toastr.warning('이미지 설명을 입력해주세요');
+                toastr.warning('이미지 프롬프트를 입력해주세요');
                 return;
             }
 
             const $btn = $(this);
             const $preview = $('#st-insta-create-preview');
             
-            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> 생성 중...');
-            $preview.html('<div class="st-insta-spinner"></div>');
+            // 버튼 비활성화 및 로딩 표시
+            $btn.addClass('disabled').text('생성 중...');
+            $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
 
             try {
-                const user = getUserInfo();
+                // 이미지 생성
                 const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
-                generatedImageUrl = await generateImage(detailedPrompt);
+                const imageUrl = await generateImage(detailedPrompt);
 
-                if (generatedImageUrl) {
-                    $preview.html(`<img src="${generatedImageUrl}" alt="">`);
-                    $('#st-insta-create-share').removeClass('disabled');
-                    toastr.success('이미지 생성 완료!');
-                } else {
+                if (!imageUrl) {
                     throw new Error('이미지 생성 실패');
                 }
+
+                $preview.html(`<img src="${imageUrl}" alt="">`);
+                toastr.success('이미지 생성 완료! 게시 중...');
+
+                // 포스트 추가
+                const newPost = {
+                    id: Date.now(),
+                    author: user.name,
+                    authorAvatar: user.avatar,
+                    imageUrl: imageUrl,
+                    caption: caption,
+                    timestamp: Date.now(),
+                    likes: 0,
+                    likedByUser: false,
+                    comments: [],
+                    isUser: true
+                };
+
+                loadPosts();
+                posts.unshift(newPost);
+                savePosts();
+
+                // 히든 로그
+                addHiddenLog(user.name, `[Instagram 포스팅] ${user.name}가 Instagram에 게시물을 올렸습니다: "${caption}"`);
+
+                toastr.success('게시물이 업로드되었습니다!');
+                
+                // 화면 새로고침
+                $('#st-insta-create').remove();
+                open();
+
+                // 캐릭터 댓글 트리거
+                setTimeout(() => {
+                    const charInfo = getCharacterInfo();
+                    checkAndGenerateComment(newPost.id, charInfo.name);
+                }, 3000);
+
             } catch (e) {
-                $preview.html('<i class="fa-regular fa-image"></i>');
+                $preview.html('<i class="fa-regular fa-image"></i><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">공유 시 자동 생성됩니다</div>');
+                $btn.removeClass('disabled').text('공유');
                 toastr.error('이미지 생성에 실패했습니다');
-            } finally {
-                $btn.prop('disabled', false).html('<i class="fa-solid fa-wand-magic-sparkles"></i> 이미지 생성');
             }
-        });
-
-        // 공유
-        $('#st-insta-create-share').off('click').on('click', function() {
-            if ($(this).hasClass('disabled')) return;
-
-            const caption = $('#st-insta-create-caption').val().trim() || '📸';
-            const imageUrl = $('#st-insta-create-preview img').attr('src');
-            const user = getUserInfo();
-
-            if (!imageUrl) {
-                toastr.warning('먼저 이미지를 생성해주세요');
-                return;
-            }
-
-            // 포스트 추가
-            const newPost = {
-                id: Date.now(),
-                author: user.name,
-                authorAvatar: user.avatar,
-                imageUrl: imageUrl,
-                caption: caption,
-                timestamp: Date.now(),
-                likes: 0,
-                likedByUser: false,
-                comments: [],
-                isUser: true
-            };
-
-            loadPosts();
-            posts.unshift(newPost);
-            savePosts();
-
-            // 히든 로그
-            addHiddenLog(user.name, `[Instagram 포스팅] ${user.name}가 Instagram에 게시물을 올렸습니다: "${caption}"`);
-
-            toastr.success('게시물이 업로드되었습니다!');
-            
-            // 화면 새로고침
-            $('#st-insta-create').remove();
-            open();
-
-            // 캐릭터 댓글 트리거
-            setTimeout(() => {
-                const charInfo = getCharacterInfo();
-                checkAndGenerateComment(newPost.id, charInfo.name);
-            }, 3000);
         });
     }
 
