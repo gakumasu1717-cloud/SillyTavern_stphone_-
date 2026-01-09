@@ -223,7 +223,7 @@ const EXTENSION_NAME = 'ST Phone System';
         }
     }
 
-// 메시지 분석 및 폰으로 전송 (동기화)
+    // 메시지 분석 및 폰으로 전송 (동기화)
     function processSync(node) {
         if (window.STPhone.Apps.Settings && window.STPhone.Apps.Settings.getSettings) {
             const s = window.STPhone.Apps.Settings.getSettings();
