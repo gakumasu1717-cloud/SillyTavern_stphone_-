@@ -1272,35 +1272,34 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             let lineText = lines[i].trim();
             if (!lineText) continue;
 
-            // Instagram 포스팅/답글 패턴 감지 및 제거 (여러 개 처리)
+            // Instagram 포스팅/답글 패턴 감지 및 제거
             if (window.STPhone.Apps?.Instagram) {
                 const Instagram = window.STPhone.Apps.Instagram;
                 
-                // 포스팅 패턴 (여러 개) - 패턴에서 캐릭터 이름 추출
-                // [Instagram 포스팅] 짱돌이가 Instagram에 게시물을 올렸습니다: "캡션"
-                const postRegex = /\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/gi;
-                let postMatch;
-                while ((postMatch = postRegex.exec(lineText)) !== null) {
-                    if (typeof Instagram.createPostFromChat === 'function') {
-                        const authorName = postMatch[1] || contactName;
-                        Instagram.createPostFromChat(authorName, postMatch[2]);
+                // 포스팅 패턴 - 있을 때만 처리
+                if (lineText.includes('[Instagram 포스팅]')) {
+                    const postMatch = lineText.match(/\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/i);
+                    if (postMatch && typeof Instagram.createPostFromChat === 'function') {
+                        Instagram.createPostFromChat(postMatch[1], postMatch[2]);
                     }
+                    lineText = lineText.replace(/\[Instagram 포스팅\][^\n]*/gi, '').trim();
                 }
-                lineText = lineText.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
                 
-                // 답글 패턴 (여러 개) - 패턴에서 캐릭터 이름 추출
-                // [Instagram 답글] 짱돌이가 ㄱ의 댓글에 답글을 남겼습니다: "내용"
-                const replyRegex = /\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/gi;
-                let replyMatch;
-                while ((replyMatch = replyRegex.exec(lineText)) !== null) {
-                    if (typeof Instagram.addReplyFromChat === 'function') {
-                        const authorName = replyMatch[1] || contactName;
-                        Instagram.addReplyFromChat(authorName, replyMatch[2]);
+                // 답글 패턴 - 있을 때만 처리
+                if (lineText.includes('[Instagram 답글]')) {
+                    const replyMatch = lineText.match(/\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/i);
+                    if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
+                        Instagram.addReplyFromChat(replyMatch[1], replyMatch[2]);
                     }
+                    lineText = lineText.replace(/\[Instagram 답글\][^\n]*/gi, '').trim();
                 }
-                lineText = lineText.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
                 
-                if (!lineText) continue; // 태그만 있었으면 스킵
+                // 댓글 패턴도 제거 (표시만 제거, 처리는 instagram.js에서)
+                if (lineText.includes('[Instagram 댓글]')) {
+                    lineText = lineText.replace(/\[Instagram 댓글\][^\n]*/gi, '').trim();
+                }
+                
+                if (!lineText) continue;
             }
 
             const calendarInstalled = window.STPhone?.Apps?.Store?.isInstalled?.('calendar');
@@ -3021,31 +3020,32 @@ Personality: ${settings.userPersonality || '(not specified)'}
                 let cleanMessage = message.trim();
                 if (!cleanMessage) continue;
 
-                // Instagram 포스팅/답글 패턴 감지 및 제거 (여러 개 처리)
+                // Instagram 포스팅/답글 패턴 감지 및 제거
                 if (window.STPhone.Apps?.Instagram) {
                     const Instagram = window.STPhone.Apps.Instagram;
                     
-                    // 포스팅 패턴 (여러 개) - 패턴에서 캐릭터 이름 추출
-                    const postRegex = /\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/gi;
-                    let postMatch;
-                    while ((postMatch = postRegex.exec(cleanMessage)) !== null) {
-                        if (typeof Instagram.createPostFromChat === 'function') {
-                            const authorName = postMatch[1] || member.name;
-                            Instagram.createPostFromChat(authorName, postMatch[2]);
+                    // 포스팅 패턴 - 있을 때만 처리
+                    if (cleanMessage.includes('[Instagram 포스팅]')) {
+                        const postMatch = cleanMessage.match(/\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/i);
+                        if (postMatch && typeof Instagram.createPostFromChat === 'function') {
+                            Instagram.createPostFromChat(postMatch[1], postMatch[2]);
                         }
+                        cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^\n]*/gi, '').trim();
                     }
-                    cleanMessage = cleanMessage.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '').trim();
                     
-                    // 답글 패턴 (여러 개) - 패턴에서 캐릭터 이름 추출
-                    const replyRegex = /\[Instagram 답글\]\s*(\S+?)가[^"]*"([^"]+)"/gi;
-                    let replyMatch;
-                    while ((replyMatch = replyRegex.exec(cleanMessage)) !== null) {
-                        if (typeof Instagram.addReplyFromChat === 'function') {
-                            const authorName = replyMatch[1] || member.name;
-                            Instagram.addReplyFromChat(authorName, replyMatch[2]);
+                    // 답글 패턴 - 있을 때만 처리
+                    if (cleanMessage.includes('[Instagram 답글]')) {
+                        const replyMatch = cleanMessage.match(/\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/i);
+                        if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
+                            Instagram.addReplyFromChat(replyMatch[1], replyMatch[2]);
                         }
+                        cleanMessage = cleanMessage.replace(/\[Instagram 답글\][^\n]*/gi, '').trim();
                     }
-                    cleanMessage = cleanMessage.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '').trim();
+                    
+                    // 댓글 패턴도 제거 (표시만 제거, 처리는 instagram.js에서)
+                    if (cleanMessage.includes('[Instagram 댓글]')) {
+                        cleanMessage = cleanMessage.replace(/\[Instagram 댓글\][^\n]*/gi, '').trim();
+                    }
                     
                     if (!cleanMessage) continue;
                 }

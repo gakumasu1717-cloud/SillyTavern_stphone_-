@@ -1817,6 +1817,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         }, 1000);
     }
     
+    // 초기 로드 완료 플래그 - 이전 메시지에 토스트 안 띄우기 위함
+    let initialLoadComplete = false;
+    
     // Phone.js 방식: 채팅창 DOM 감시
     function startInstagramObserver() {
         const chatRoot = document.getElementById('chat');
@@ -1825,28 +1828,65 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             return;
         }
 
+        // 기존 메시지들 먼저 태그만 제거 (토스트 없이)
+        const existingMsgs = chatRoot.querySelectorAll('.mes');
+        existingMsgs.forEach(msg => {
+            cleanInstagramTags(msg);
+        });
+        
+        // 초기 로드 완료 - 이후 새 메시지만 토스트
+        setTimeout(() => { initialLoadComplete = true; }, 1000);
+
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1 && node.classList.contains('mes')) {
-                        checkMessageForInstagram(node);
+                        if (initialLoadComplete) {
+                            checkMessageForInstagram(node);
+                        } else {
+                            cleanInstagramTags(node);
+                        }
                     }
                 });
-                if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                    const target = mutation.target.parentElement?.closest('.mes');
-                    if (target) checkMessageForInstagram(target);
-                }
             });
         });
 
-        observer.observe(chatRoot, { childList: true, subtree: true });
+        observer.observe(chatRoot, { childList: true, subtree: false });
+    }
+    
+    // 태그만 제거 (토스트/게시물 생성 없이)
+    function cleanInstagramTags(msgNode) {
+        if (msgNode.dataset.instagramCleaned) return;
+        const textDiv = msgNode.querySelector('.mes_text');
+        if (!textDiv) return;
+        
+        let html = textDiv.innerHTML;
+        let modified = false;
+        
+        if (html.includes('[Instagram 포스팅]')) {
+            html = html.replace(/\[Instagram 포스팅\][^\n<]*/gi, '');
+            modified = true;
+        }
+        if (html.includes('[Instagram 답글]')) {
+            html = html.replace(/\[Instagram 답글\][^\n<]*/gi, '');
+            modified = true;
+        }
+        if (html.includes('[Instagram 댓글]')) {
+            html = html.replace(/\[Instagram 댓글\][^\n<]*/gi, '');
+            modified = true;
+        }
+        
+        if (modified) {
+            textDiv.innerHTML = html.trim();
+        }
+        msgNode.dataset.instagramCleaned = "true";
+        msgNode.dataset.instagramChecked = "true";
     }
 
-    // 메시지에서 Instagram 포스팅 태그 감지
+    // 메시지에서 Instagram 포스팅 태그 감지 (새 메시지용 - 토스트 O)
     function checkMessageForInstagram(msgNode) {
         if (msgNode.dataset.instagramChecked) return;
         if (msgNode.getAttribute('is_user') === 'true') return;
-        // last_mes 체크 제거 - 모든 AI 메시지 감지
 
         const textDiv = msgNode.querySelector('.mes_text');
         if (!textDiv) return;
@@ -1855,38 +1895,36 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         const fallbackName = msgNode.getAttribute('ch_name') || "Unknown";
         let modified = false;
         
-        // 포스팅 패턴 감지 (여러 개 처리) - 패턴에서 캐릭터 이름 추출
-        // [Instagram 포스팅] 짱돌이가 Instagram에 게시물을 올렸습니다: "캡션"
-        const postRegex = /\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/gi;
-        let postMatch;
-        while ((postMatch = postRegex.exec(html)) !== null) {
-            const authorName = postMatch[1] || fallbackName;
-            createPostFromChat(authorName, postMatch[2]);
+        // 포스팅 패턴 - 있을 때만 처리
+        if (html.includes('[Instagram 포스팅]')) {
+            const postMatch = html.match(/\[Instagram 포스팅\]\s*(\S+)가\s+Instagram에[^"]*"([^"]+)"/i);
+            if (postMatch) {
+                createPostFromChat(postMatch[1] || fallbackName, postMatch[2]);
+            }
+            html = html.replace(/\[Instagram 포스팅\][^\n<]*/gi, '');
             modified = true;
         }
-        if (modified) {
-            html = html.replace(/\[Instagram 포스팅\][^"]*"[^"]+"/gi, '');
+        
+        // 답글 패턴 - 있을 때만 처리
+        if (html.includes('[Instagram 답글]')) {
+            const replyMatch = html.match(/\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/i);
+            if (replyMatch) {
+                addReplyFromChat(replyMatch[1] || fallbackName, replyMatch[2]);
+            }
+            html = html.replace(/\[Instagram 답글\][^\n<]*/gi, '');
+            modified = true;
         }
         
-        // 답글 패턴 감지 (여러 개 처리) - 패턴에서 캐릭터 이름 추출
-        // [Instagram 답글] 짱돌이가 ㄱ의 댓글에 답글을 남겼습니다: "내용"
-        const replyRegex = /\[Instagram 답글\]\s*(\S+)가[^"]*"([^"]+)"/gi;
-        let replyMatch;
-        let replyModified = false;
-        while ((replyMatch = replyRegex.exec(html)) !== null) {
-            const authorName = replyMatch[1] || fallbackName;
-            addReplyFromChat(authorName, replyMatch[2]);
-            replyModified = true;
-        }
-        if (replyModified) {
-            html = html.replace(/\[Instagram 답글\][^"]*"[^"]+"/gi, '');
+        // 댓글 패턴도 제거
+        if (html.includes('[Instagram 댓글]')) {
+            html = html.replace(/\[Instagram 댓글\][^\n<]*/gi, '');
             modified = true;
         }
         
         if (modified) {
-            msgNode.dataset.instagramChecked = "true";
             textDiv.innerHTML = html.trim();
         }
+        msgNode.dataset.instagramChecked = "true";
     }
 
     // 채팅에서 인스타 포스팅/답글 감지
