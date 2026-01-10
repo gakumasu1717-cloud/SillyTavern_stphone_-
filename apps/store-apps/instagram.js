@@ -794,7 +794,8 @@ Output ONLY the comment text, no quotes.`
             const contact = contacts[0];
             return {
                 name: contact.name || 'Character',
-                avatar: contact.avatar || getContactAvatar(contact.name)
+                avatar: contact.avatar || getContactAvatar(contact.name),
+                personality: contact.persona || ''
             };
         }
         // 연락처 없으면 SillyTavern 컨텍스트에서
@@ -802,7 +803,8 @@ Output ONLY the comment text, no quotes.`
         const charName = ctx?.name2 || 'Character';
         return {
             name: charName,
-            avatar: getContactAvatar(charName)
+            avatar: getContactAvatar(charName),
+            personality: ''
         };
     }
 
@@ -1301,18 +1303,29 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         try {
             const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         
-        loadPosts();
-        const post = posts.find(p => p.id === postId);
-        if (!post) return;
+            loadPosts();
+            const post = posts.find(p => p.id === postId);
+            if (!post) {
+                console.log('[Instagram] 게시물 없음:', postId);
+                return;
+            }
 
-        // 자신의 게시물에는 댓글 안 함
-        if (post.author.toLowerCase() === charName.toLowerCase()) return;
+            // 자신의 게시물에는 댓글 안 함
+            if (post.author.toLowerCase() === charName.toLowerCase()) {
+                console.log('[Instagram] 자신의 게시물 - 댓글 스킵');
+                return;
+            }
 
-        // 이미 댓글을 남겼는지 확인
-        const alreadyCommented = post.comments.some(
-            c => c.author.toLowerCase() === charName.toLowerCase()
-        );
-        if (alreadyCommented) return;
+            // 이미 댓글을 남겼는지 확인
+            const alreadyCommented = post.comments.some(
+                c => c.author.toLowerCase() === charName.toLowerCase()
+            );
+            if (alreadyCommented) {
+                console.log('[Instagram] 이미 댓글 있음 - 스킵');
+                return;
+            }
+            
+            console.log('[Instagram] 댓글 생성 시작:', charName, '->', post.author);
 
         const contact = getContactByName(charName);
         const relationship = contact?.relationship || 'friend';
