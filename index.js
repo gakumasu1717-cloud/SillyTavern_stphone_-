@@ -187,8 +187,44 @@ const EXTENSION_NAME = 'ST Phone System';
         const textDiv = node.querySelector('.mes_text');
         if (!textDiv) return;
 
-        // [NEW] 메시지 내부의 [IG_POST]...[/IG_POST] 태그 제거 (표시 안 되게)
+        // [NEW] 메시지 내부의 [IG_POST]...[/IG_POST] 태그 감지 및 Instagram 앱으로 전달
         const originalHtml = textDiv.innerHTML;
+        const originalText = textDiv.innerText;
+        
+        // Instagram 포스트 태그 감지 및 처리
+        const igPostMatch = originalText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+        if (igPostMatch) {
+            const caption = igPostMatch[1].trim();
+            // Instagram 앱이 설치되어 있으면 포스트 생성
+            const Store = window.STPhone?.Apps?.Store;
+            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                    // 발신자 이름 추출 (캐릭터 이름)
+                    const nameDiv = node.querySelector('.ch_name, .name_text');
+                    const characterName = nameDiv?.innerText?.trim() || 'Unknown';
+                    console.log('[STPhone] Instagram 포스트 생성:', characterName, caption.substring(0, 30));
+                    Instagram.createPostFromChat(characterName, caption);
+                }
+            }
+        }
+        
+        // Instagram 답글 태그 감지 및 처리
+        const igReplyMatch = originalText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+        if (igReplyMatch) {
+            const replyText = igReplyMatch[1].trim();
+            const Store = window.STPhone?.Apps?.Store;
+            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                    const nameDiv = node.querySelector('.ch_name, .name_text');
+                    const characterName = nameDiv?.innerText?.trim() || 'Unknown';
+                    Instagram.addReplyFromChat(characterName, replyText);
+                }
+            }
+        }
+        
+        // 태그를 DOM에서 제거 (표시 안 되게)
         const cleanedHtml = originalHtml
             .replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '')
             .replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '');
