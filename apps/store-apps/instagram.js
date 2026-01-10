@@ -584,10 +584,20 @@ Output ONLY the comment text, no quotes.`
     // URL 유효성 검사 (XSS 방어)
     function isValidImageUrl(url) {
         if (!url || typeof url !== 'string') return false;
+        
+        // data URI는 별도 처리 (base64 이미지)
+        if (url.startsWith('data:image/')) {
+            // javascript: 인젝션 방지
+            if (url.toLowerCase().includes('javascript:')) {
+                return false;
+            }
+            return true;
+        }
+        
         try {
             const parsed = new URL(url);
-            // http, https, data URI만 허용
-            if (!['http:', 'https:', 'data:'].includes(parsed.protocol)) {
+            // http, https만 허용 (data는 위에서 처리)
+            if (!['http:', 'https:'].includes(parsed.protocol)) {
                 return false;
             }
             // javascript: 프로토콜 차단
