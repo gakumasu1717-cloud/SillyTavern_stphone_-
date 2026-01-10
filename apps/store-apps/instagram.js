@@ -1040,8 +1040,15 @@ Example output format:
             if (sdCmd && typeof sdCmd.callback === 'function') {
                 try {
                     const result = await sdCmd.callback({ quiet: 'true' }, prompt);
+                    console.log('[Instagram] sd.callback 결과:', typeof result, result ? result.substring?.(0, 100) : result);
                     if (result && typeof result === 'string') {
                         return result;
+                    }
+                    // 결과가 객체인 경우 처리
+                    if (result && typeof result === 'object') {
+                        if (result.pipe) return result.pipe;
+                        if (result.url) return result.url;
+                        if (result.image) return result.image;
                     }
                 } catch (e) {
                     console.warn("[Instagram] sd.callback 실패:", e);
@@ -1053,11 +1060,17 @@ Example output format:
         if (executeCmd) {
             try {
                 const result = await executeCmd(`/sd quiet=true ${prompt}`);
+                console.log('[Instagram] executeCmd 결과:', typeof result, result);
                 if (result && result.pipe) {
                     return result.pipe;
                 }
                 if (typeof result === 'string') {
                     return result;
+                }
+                // 결과가 객체인 경우 추가 처리
+                if (result && typeof result === 'object') {
+                    if (result.url) return result.url;
+                    if (result.image) return result.image;
                 }
             } catch (e) {
                 console.warn("[Instagram] executeSlashCommands 실패:", e);
@@ -1496,6 +1509,7 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         // 이미지가 있을 때만 표시 (URL 검증으로 XSS 방어)
         const safeImageUrl = sanitizeImageUrl(post.imageUrl);
+        console.log('[Instagram] renderPost 이미지:', { postId: post.id, hasImageUrl: !!post.imageUrl, urlType: typeof post.imageUrl, urlStart: post.imageUrl?.substring?.(0, 50), isSafe: !!safeImageUrl });
         const imageHtml = safeImageUrl 
             ? `<img class="st-insta-post-image" src="${safeImageUrl}" alt="" loading="lazy">`
             : '';
@@ -2319,8 +2333,11 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                     `${charName} selfie for Instagram, ${caption}`,
                     charName
                 );
+                console.log('[Instagram] 이미지 생성 시도, 프롬프트:', detailedPrompt?.substring?.(0, 100));
                 imageUrl = await generateImage(detailedPrompt);
+                console.log('[Instagram] 이미지 생성 완료, URL:', imageUrl ? imageUrl.substring(0, 100) + '...' : 'null');
             } catch (e) {
+                console.warn('[Instagram] 이미지 생성 실패 (포스팅은 진행):', e);
                 // 이미지 없어도 포스팅 진행
             }
             
@@ -2338,6 +2355,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 comments: [],
                 isUser: false
             };
+            
+            console.log('[Instagram] 새 포스트 저장:', { id: newPost.id, author: newPost.author, hasImage: !!newPost.imageUrl });
             
             posts.unshift(newPost);
             savePosts();
