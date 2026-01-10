@@ -913,6 +913,7 @@ Output ONLY the comment text, no quotes.`
         const profileId = settings.connectionProfileId;
 
         window.STPhone.isPhoneGenerating = true;
+        console.log('[Instagram] generateWithAI 시작, profileId:', profileId);
 
         try {
             const context = window.SillyTavern?.getContext?.();
@@ -920,8 +921,10 @@ Output ONLY the comment text, no quotes.`
 
             // Connection Profile 사용 (우선)
             if (profileId) {
+                console.log('[Instagram] Connection Profile 사용 시도...');
                 const connectionManager = context.ConnectionManagerRequestService;
                 if (connectionManager && typeof connectionManager.sendRequest === 'function') {
+                    console.log('[Instagram] sendRequest 호출 중...');
                     const result = await connectionManager.sendRequest(
                         profileId,
                         [{ role: 'user', content: prompt }],
@@ -929,18 +932,25 @@ Output ONLY the comment text, no quotes.`
                         {},
                         { max_tokens: maxTokens }
                     );
+                    console.log('[Instagram] sendRequest 결과:', result);
                     return stripCalendarDate(normalizeModelOutput(result).trim());
+                } else {
+                    console.log('[Instagram] connectionManager 없음 또는 sendRequest 없음');
                 }
             }
 
             // Fallback: genraw
+            console.log('[Instagram] genraw fallback 사용...');
             const parser = context.SlashCommandParser || window.SlashCommandParser;
             const genCmd = parser?.commands?.['genraw'];
             if (genCmd?.callback) {
+                console.log('[Instagram] genraw 호출 중...');
                 const result = await genCmd.callback({ quiet: true, hidden: true }, prompt);
+                console.log('[Instagram] genraw 결과:', result);
                 return stripCalendarDate(String(result || '').trim());
             }
 
+            console.log('[Instagram] 사용 가능한 AI 메서드 없음');
             return null;
         } catch (e) {
             console.error('[Instagram] AI 생성 실패:', e);
