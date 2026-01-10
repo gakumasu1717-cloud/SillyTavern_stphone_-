@@ -802,17 +802,45 @@ Output ONLY the comment text, no quotes.`
     }
 
     function formatTimeAgo(timestamp) {
-        const now = Date.now();
+        // 캘린더가 활성화되어 있으면 RP 날짜 기준으로 계산
+        const calInfo = getCalendarInfo();
+        let now;
+        
+        if (calInfo) {
+            // RP 날짜 + 현재 시간으로 "지금" 시점 계산
+            const realNow = new Date();
+            now = new Date(calInfo.year, calInfo.month - 1, calInfo.day, 
+                realNow.getHours(), realNow.getMinutes(), realNow.getSeconds()).getTime();
+        } else {
+            now = Date.now();
+        }
+        
         const diff = now - timestamp;
         const minutes = Math.floor(diff / 60000);
         const hours = Math.floor(diff / 3600000);
         const days = Math.floor(diff / 86400000);
         
+        // 음수면 (미래 날짜면) 날짜 형식으로 표시
+        if (diff < 0) {
+            return formatPostDate(timestamp);
+        }
+        
         if (minutes < 1) return '방금 전';
         if (minutes < 60) return `${minutes}분 전`;
         if (hours < 24) return `${hours}시간 전`;
         if (days < 7) return `${days}일 전`;
-        return new Date(timestamp).toLocaleDateString('ko-KR');
+        return formatPostDate(timestamp);
+    }
+
+    // 포스트 날짜 포맷 (캘린더 스타일)
+    function formatPostDate(timestamp) {
+        const date = new Date(timestamp);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayOfWeek = dayNames[date.getDay()];
+        return `${year}.${month}.${day} ${dayOfWeek}요일`;
     }
 
     // 최근 채팅 히스토리 가져오기
