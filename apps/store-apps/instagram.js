@@ -1346,7 +1346,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             // 3. 유저 게시물에 댓글 달기
             for (const post of userPostsWithoutCharComment) {
                 const comment = await generateCommentForPost(post, charName, 'comment');
-                if (comment) {
+                if (comment && comment.text && comment.text.trim().length >= 2) {
                     post.comments.push(comment);
                     commentsAdded++;
                     addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${comment.text}"`);
@@ -1357,7 +1357,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             for (const post of charPostsNeedingReply) {
                 const lastUserComment = post.comments.filter(c => c.author === user.name).pop();
                 const comment = await generateCommentForPost(post, charName, 'reply', lastUserComment?.text);
-                if (comment) {
+                if (comment && comment.text && comment.text.trim().length >= 2) {
                     post.comments.push(comment);
                     commentsAdded++;
                     addHiddenLog(charName, `[Instagram 답글] ${charName}가 ${user.name}의 댓글에 답글을 남겼습니다: "${comment.text}"`);
@@ -1421,11 +1421,20 @@ ${task}
         const comment = await generateWithAI(commentPrompt, 100);
         console.log('[Instagram] AI 댓글 응답:', comment);
         
-        if (!comment?.trim() || comment.includes('[SKIP]')) {
+        // 빈 응답 체크 강화
+        if (!comment || !comment.trim() || comment.trim().length < 2 || comment.includes('[SKIP]')) {
+            console.log('[Instagram] 댓글 스킵 (빈 응답 또는 [SKIP])');
             return null;
         }
         
         const cleanComment = stripDateTag(comment.trim());
+        
+        // 정리 후에도 빈이면 스킵
+        if (!cleanComment || cleanComment.length < 2) {
+            console.log('[Instagram] 댓글 스킵 (정리 후 빈)');
+            return null;
+        }
+        
         console.log('[Instagram] 댓글 추가:', cleanComment);
         
         return {
