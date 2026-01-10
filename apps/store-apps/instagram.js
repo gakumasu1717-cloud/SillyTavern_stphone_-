@@ -581,55 +581,22 @@ Output ONLY the comment text, no quotes.`
         return Store.isInstalled('instagram');
     }
 
-    // URL 유효성 검사 (XSS 방어)
+    // URL 유효성 검사 (XSS 방어) - sanitizeImageUrl에서 사용 안 하고 있으므로 간소화
     function isValidImageUrl(url) {
-        if (!url || typeof url !== 'string') {
-            console.log('[Instagram] isValidImageUrl: URL 없음 또는 문자열 아님', typeof url);
-            return false;
-        }
-        
-        // data URI는 별도 처리 (base64 이미지)
-        if (url.startsWith('data:image/')) {
-            // javascript: 인젝션 방지
-            if (url.toLowerCase().includes('javascript:')) {
-                return false;
-            }
-            console.log('[Instagram] isValidImageUrl: data URI 유효');
-            return true;
-        }
-        
-        // 상대 경로 허용 (SillyTavern 로컬 이미지)
-        if (url.startsWith('/') || url.startsWith('./')) {
-            console.log('[Instagram] isValidImageUrl: 상대 경로 유효');
-            return true;
-        }
-        
+        if (!url || typeof url !== 'string') return false;
+        if (url.startsWith('data:image/')) return true;
+        if (url.startsWith('/') || url.startsWith('./')) return true;
         try {
             const parsed = new URL(url);
-            // http, https만 허용 (data는 위에서 처리)
-            if (!['http:', 'https:'].includes(parsed.protocol)) {
-                console.log('[Instagram] isValidImageUrl: 프로토콜 거부', parsed.protocol);
-                return false;
-            }
-            // javascript: 프로토콜 차단
-            if (url.toLowerCase().includes('javascript:')) {
-                return false;
-            }
-            console.log('[Instagram] isValidImageUrl: http/https 유효');
-            return true;
+            return ['http:', 'https:'].includes(parsed.protocol);
         } catch (e) {
-            console.log('[Instagram] isValidImageUrl: URL 파싱 실패', url.substring(0, 50), e.message);
             return false;
         }
     }
 
-    // 안전한 이미지 URL 반환
+    // 안전한 이미지 URL 반환 (현재 미사용 - 직접 imageUrl 사용)
     function sanitizeImageUrl(url) {
-        const isValid = isValidImageUrl(url);
-        if (!isValid) {
-            console.log('[Instagram] sanitizeImageUrl: 유효하지 않은 URL 필터링됨', url?.substring?.(0, 100));
-        }
-        return isValid ? url : '';
+        return isValidImageUrl(url) ? url : '';
     }
 
     function stripDateTag(text) {
@@ -1057,15 +1024,8 @@ Example output format:
             if (sdCmd && typeof sdCmd.callback === 'function') {
                 try {
                     const result = await sdCmd.callback({ quiet: 'true' }, prompt);
-                    console.log('[Instagram] sd.callback 결과:', typeof result, result ? result.substring?.(0, 100) : result);
                     if (result && typeof result === 'string') {
                         return result;
-                    }
-                    // 결과가 객체인 경우 처리
-                    if (result && typeof result === 'object') {
-                        if (result.pipe) return result.pipe;
-                        if (result.url) return result.url;
-                        if (result.image) return result.image;
                     }
                 } catch (e) {
                     console.warn("[Instagram] sd.callback 실패:", e);
@@ -1077,17 +1037,11 @@ Example output format:
         if (executeCmd) {
             try {
                 const result = await executeCmd(`/sd quiet=true ${prompt}`);
-                console.log('[Instagram] executeCmd 결과:', typeof result, result);
                 if (result && result.pipe) {
                     return result.pipe;
                 }
                 if (typeof result === 'string') {
                     return result;
-                }
-                // 결과가 객체인 경우 추가 처리
-                if (result && typeof result === 'object') {
-                    if (result.url) return result.url;
-                    if (result.image) return result.image;
                 }
             } catch (e) {
                 console.warn("[Instagram] executeSlashCommands 실패:", e);
@@ -1524,11 +1478,9 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
             }
         }
 
-        // 이미지가 있을 때만 표시 (URL 검증으로 XSS 방어)
-        const safeImageUrl = sanitizeImageUrl(post.imageUrl);
-        console.log('[Instagram] renderPost 이미지:', { postId: post.id, hasImageUrl: !!post.imageUrl, urlType: typeof post.imageUrl, urlStart: post.imageUrl?.substring?.(0, 50), isSafe: !!safeImageUrl });
-        const imageHtml = safeImageUrl 
-            ? `<img class="st-insta-post-image" src="${safeImageUrl}" alt="" loading="lazy">`
+        // 이미지가 있을 때만 표시
+        const imageHtml = post.imageUrl 
+            ? `<img class="st-insta-post-image" src="${post.imageUrl}" alt="" loading="lazy">`
             : '';
 
         return `
@@ -2350,11 +2302,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                     `${charName} selfie for Instagram, ${caption}`,
                     charName
                 );
-                console.log('[Instagram] 이미지 생성 시도, 프롬프트:', detailedPrompt?.substring?.(0, 100));
                 imageUrl = await generateImage(detailedPrompt);
-                console.log('[Instagram] 이미지 생성 완료, URL:', imageUrl ? imageUrl.substring(0, 100) + '...' : 'null');
             } catch (e) {
-                console.warn('[Instagram] 이미지 생성 실패 (포스팅은 진행):', e);
                 // 이미지 없어도 포스팅 진행
             }
             
@@ -2372,8 +2321,6 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 comments: [],
                 isUser: false
             };
-            
-            console.log('[Instagram] 새 포스트 저장:', { id: newPost.id, author: newPost.author, hasImage: !!newPost.imageUrl });
             
             posts.unshift(newPost);
             savePosts();
