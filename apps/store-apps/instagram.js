@@ -1304,45 +1304,104 @@ If the situation is not suitable for posting, set shouldPost to false.`;
     // ========== 댓글 시스템 ==========
     let isGeneratingComment = false;
     
-    async function checkAndGenerateComment(postId, charName) {
-        // 중복 호출 방지
+    // [NEW] 모든 미응답 게시물/댓글에 캐릭터 응답
+    async function checkAllPendingComments(charName) {
         if (isGeneratingComment) return;
         
         isGeneratingComment = true;
         
         try {
-            const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-        
             loadPosts();
-            const post = posts.find(p => p.id === postId);
-            if (!post) {
-                console.log('[Instagram] 게시물 없음:', postId);
-                return;
-            }
-
-            // 자신의 게시물에는 댓글 안 함
-            if (post.author.toLowerCase() === charName.toLowerCase()) {
-                console.log('[Instagram] 자신의 게시물 - 댓글 스킵');
-                return;
-            }
-
-            // 이미 댓글을 남겼는지 확인
-            const alreadyCommented = post.comments.some(
-                c => c.author.toLowerCase() === charName.toLowerCase()
-            );
-            if (alreadyCommented) {
-                console.log('[Instagram] 이미 댓글 있음 - 스킵');
-                return;
+            const user = getUserInfo();
+            let commentsAdded = 0;
+            
+            // 1. 유저 게시물 중 캐릭터 댓글이 없는 것들 찾기
+            const userPostsWithoutCharComment = posts.filter(post => {
+                if (post.author.toLowerCase() === charName.toLowerCase()) return false;
+                if (post.author !== user.name && !post.isUser) return false;
+                const hasCharComment = post.comments.some(c => 
+                    c.author.toLowerCase() === charName.toLowerCase()
+                );
+                return !hasCharComment;
+            });
+            
+            // 2. 캐릭터 게시물 중 유저 댓글이 있고 캐릭터 답글이 없는 것들 찾기
+            const charPostsNeedingReply = posts.filter(post => {
+                if (post.author.toLowerCase() !== charName.toLowerCase()) return false;
+                const userComments = post.comments.filter(c => c.author === user.name);
+                if (userComments.length === 0) return false;
+                
+                // 마지막 유저 댓글 이후에 캐릭터 답글이 있는지 확인
+                const lastUserComment = userComments[userComments.length - 1];
+                const hasCharReplyAfter = post.comments.some(c => 
+                    c.author.toLowerCase() === charName.toLowerCase() && 
+                    c.id > lastUserComment.id
+                );
+                return !hasCharReplyAfter;
+            });
+            
+            console.log('[Instagram] 미응답 유저 게시물:', userPostsWithoutCharComment.length);
+            console.log('[Instagram] 답글 필요한 캐릭터 게시물:', charPostsNeedingReply.length);
+            
+            // 3. 유저 게시물에 댓글 달기
+            for (const post of userPostsWithoutCharComment) {
+                const comment = await generateCommentForPost(post, charName, 'comment');
+                if (comment) {
+                    post.comments.push(comment);
+                    commentsAdded++;
+                    addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${comment.text}"`);
+                }
             }
             
-            console.log('[Instagram] 댓글 생성 시작:', charName, '->', post.author);
-
+            // 4. 캐릭터 게시물에 답글 달기
+            for (const post of charPostsNeedingReply) {
+                const lastUserComment = post.comments.filter(c => c.author === user.name).pop();
+                const comment = await generateCommentForPost(post, charName, 'reply', lastUserComment?.text);
+                if (comment) {
+                    post.comments.push(comment);
+                    commentsAdded++;
+                    addHiddenLog(charName, `[Instagram 답글] ${charName}가 ${user.name}의 댓글에 답글을 남겼습니다: "${comment.text}"`);
+                }
+            }
+            
+            if (commentsAdded > 0) {
+                savePosts();
+                console.log('[Instagram] 총', commentsAdded, '개 댓글 저장 완료');
+                
+                if ($('.st-insta-app').length) {
+                    setTimeout(() => open(), 100);
+                }
+                
+                if (typeof toastr !== 'undefined') {
+                    toastr.info(`${charName}님이 ${commentsAdded}개의 댓글을 달았습니다`);
+                }
+            }
+            
+        } catch (e) {
+            console.error('[Instagram] 댓글 생성 실패:', e);
+        } finally {
+            isGeneratingComment = false;
+        }
+    }
+    
+    // 개별 게시물에 대한 댓글 생성
+    async function generateCommentForPost(post, charName, type = 'comment', replyToText = '') {
         const contact = getContactByName(charName);
         const relationship = contact?.relationship || 'friend';
-
-        // [최적화] 맥락 체크 + 댓글 생성 통합 (2회 → 1회)
         const charInfo = getCharacterInfo();
         const chatHistory = getChatHistory(500);
+        
+        let task = '';
+        if (type === 'reply') {
+            task = `${post.author}(${charName})의 게시물에 달린 댓글에 답글을 달아주세요.
+게시물 내용: "${post.caption}"
+유저의 댓글: "${replyToText}"
+
+답글을 작성하세요.`;
+        } else {
+            task = `${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
+게시물 내용: "${post.caption}"`;
+        }
         
         const commentPrompt = `[System] You are ${charName}.
 Personality: ${charInfo.personality || '자연스럽고 친근함'}
@@ -1352,8 +1411,7 @@ Relationship with ${post.author}: ${relationship}
 ${chatHistory}
 
 ### Task:
-${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
-게시물 내용: "${post.caption}"
+${task}
 
 위의 대화 맥락과 ${charName}의 성격을 반영해서 자연스러운 댓글을 작성하세요.
 평소 대화하는 말투를 유지하세요. 반말/존대말은 대화 맥락을 따르세요.
@@ -1362,46 +1420,27 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         const comment = await generateWithAI(commentPrompt, 100);
         console.log('[Instagram] AI 댓글 응답:', comment);
+        
         if (!comment?.trim() || comment.includes('[SKIP]')) {
-            console.log('[Instagram] 댓글 스킵됨 (빈 응답 또는 [SKIP])');
-            return;
+            return null;
         }
-
-        // 댓글 추가
+        
         const cleanComment = stripDateTag(comment.trim());
         console.log('[Instagram] 댓글 추가:', cleanComment);
-        post.comments.push({
-            id: Date.now(),
+        
+        return {
+            id: Date.now() + Math.random(),
             author: charName,
             authorAvatar: getContactAvatar(charName),
             text: cleanComment,
             timestamp: getRpTimestamp()
-        });
-
-        savePosts();
-        console.log('[Instagram] 댓글 저장 완료');
-
-        // 히든 로그
-        addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
-
-        // 인스타그램 열려있으면 UI 새로고침
-        if ($('.st-insta-app').length) {
-            console.log('[Instagram] UI 새로고침 중...');
-            setTimeout(() => open(), 100);
-        } else {
-            console.log('[Instagram] 앱이 열려있지 않음 - UI 새로고침 안 함');
-        }
-        
-        // 토스트 알림 추가
-        if (typeof toastr !== 'undefined') {
-            toastr.info(`${charName}님이 댓글을 달았습니다`);
-        }
-        
-        } catch (e) {
-            console.error('[Instagram] 댓글 생성 실패:', e);
-        } finally {
-            isGeneratingComment = false;
-        }
+        };
+    }
+    
+    // 기존 함수 유지 (하위 호환)
+    async function checkAndGenerateComment(postId, charName) {
+        // 새 함수로 위임
+        await checkAllPendingComments(charName);
     }
 
     // ========== 히든 로그 ==========
