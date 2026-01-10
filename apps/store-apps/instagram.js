@@ -583,7 +583,10 @@ Output ONLY the comment text, no quotes.`
 
     // URL 유효성 검사 (XSS 방어)
     function isValidImageUrl(url) {
-        if (!url || typeof url !== 'string') return false;
+        if (!url || typeof url !== 'string') {
+            console.log('[Instagram] isValidImageUrl: URL 없음 또는 문자열 아님', typeof url);
+            return false;
+        }
         
         // data URI는 별도 처리 (base64 이미지)
         if (url.startsWith('data:image/')) {
@@ -591,6 +594,13 @@ Output ONLY the comment text, no quotes.`
             if (url.toLowerCase().includes('javascript:')) {
                 return false;
             }
+            console.log('[Instagram] isValidImageUrl: data URI 유효');
+            return true;
+        }
+        
+        // 상대 경로 허용 (SillyTavern 로컬 이미지)
+        if (url.startsWith('/') || url.startsWith('./')) {
+            console.log('[Instagram] isValidImageUrl: 상대 경로 유효');
             return true;
         }
         
@@ -598,21 +608,28 @@ Output ONLY the comment text, no quotes.`
             const parsed = new URL(url);
             // http, https만 허용 (data는 위에서 처리)
             if (!['http:', 'https:'].includes(parsed.protocol)) {
+                console.log('[Instagram] isValidImageUrl: 프로토콜 거부', parsed.protocol);
                 return false;
             }
             // javascript: 프로토콜 차단
             if (url.toLowerCase().includes('javascript:')) {
                 return false;
             }
+            console.log('[Instagram] isValidImageUrl: http/https 유효');
             return true;
         } catch (e) {
+            console.log('[Instagram] isValidImageUrl: URL 파싱 실패', url.substring(0, 50), e.message);
             return false;
         }
     }
 
     // 안전한 이미지 URL 반환
     function sanitizeImageUrl(url) {
-        return isValidImageUrl(url) ? url : '';
+        const isValid = isValidImageUrl(url);
+        if (!isValid) {
+            console.log('[Instagram] sanitizeImageUrl: 유효하지 않은 URL 필터링됨', url?.substring?.(0, 100));
+        }
+        return isValid ? url : '';
     }
 
     function stripDateTag(text) {
