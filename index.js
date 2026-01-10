@@ -183,6 +183,7 @@ const EXTENSION_NAME = 'ST Phone System';
     function hideSystemLogs(node) {
         // 이미 처리된 건 스킵
         if (node.classList.contains('st-phone-hidden-log')) return;
+        if (node.dataset.igProcessed) return; // Instagram 처리 중복 방지
 
         const textDiv = node.querySelector('.mes_text');
         if (!textDiv) return;
@@ -194,16 +195,25 @@ const EXTENSION_NAME = 'ST Phone System';
         // Instagram 포스트 태그 감지 및 처리
         const igPostMatch = originalText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
         if (igPostMatch) {
+            node.dataset.igProcessed = 'true'; // 중복 처리 방지
             const caption = igPostMatch[1].trim();
+            console.log('[STPhone] [IG_POST] 태그 감지됨:', caption.substring(0, 50));
+            
             // Instagram 앱이 설치되어 있으면 포스트 생성
             const Store = window.STPhone?.Apps?.Store;
-            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+            const isInstalled = Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram');
+            console.log('[STPhone] Instagram 설치 여부:', isInstalled);
+            
+            if (isInstalled) {
                 const Instagram = window.STPhone?.Apps?.Instagram;
+                console.log('[STPhone] Instagram 앱 존재:', !!Instagram);
+                console.log('[STPhone] createPostFromChat 존재:', typeof Instagram?.createPostFromChat);
+                
                 if (Instagram && typeof Instagram.createPostFromChat === 'function') {
                     // 발신자 이름 추출 (캐릭터 이름)
                     const nameDiv = node.querySelector('.ch_name, .name_text');
                     const characterName = nameDiv?.innerText?.trim() || 'Unknown';
-                    console.log('[STPhone] Instagram 포스트 생성:', characterName, caption.substring(0, 30));
+                    console.log('[STPhone] Instagram 포스트 생성 호출:', characterName, caption.substring(0, 30));
                     Instagram.createPostFromChat(characterName, caption);
                 }
             }
