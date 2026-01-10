@@ -1351,10 +1351,15 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 만약 댓글을 달고 싶지 않다면 [SKIP]만 출력하세요.`;
 
         const comment = await generateWithAI(commentPrompt, 100);
-        if (!comment?.trim() || comment.includes('[SKIP]')) return;
+        console.log('[Instagram] AI 댓글 응답:', comment);
+        if (!comment?.trim() || comment.includes('[SKIP]')) {
+            console.log('[Instagram] 댓글 스킵됨 (빈 응답 또는 [SKIP])');
+            return;
+        }
 
         // 댓글 추가
         const cleanComment = stripDateTag(comment.trim());
+        console.log('[Instagram] 댓글 추가:', cleanComment);
         post.comments.push({
             id: Date.now(),
             author: charName,
@@ -1364,13 +1369,22 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
         });
 
         savePosts();
+        console.log('[Instagram] 댓글 저장 완료');
 
         // 히든 로그
         addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
 
         // 인스타그램 열려있으면 UI 새로고침
         if ($('.st-insta-app').length) {
+            console.log('[Instagram] UI 새로고침 중...');
             setTimeout(() => open(), 100);
+        } else {
+            console.log('[Instagram] 앱이 열려있지 않음 - UI 새로고침 안 함');
+        }
+        
+        // 토스트 알림 추가
+        if (typeof toastr !== 'undefined') {
+            toastr.info(`${charName}님이 댓글을 달았습니다`);
         }
         
         } catch (e) {
