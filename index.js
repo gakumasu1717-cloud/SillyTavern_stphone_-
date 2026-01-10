@@ -173,7 +173,10 @@ const EXTENSION_NAME = 'ST Phone System';
                         // 채팅 로드 후 2초가 지났는지 확인 (2초 이후 = 진짜 새 메시지)
                         const isReallyNewMessage = (Date.now() - chatLoadedTime) > 2000;
                         hideSystemLogs(node, isReallyNewMessage);
-                        processSync(node);
+                        // [수정] 진짜 새 메시지일 때만 processSync (그리팅 파싱 방지)
+                        if (isReallyNewMessage) {
+                            processSync(node);
+                        }
                     }
                 });
             });
@@ -259,6 +262,15 @@ const EXTENSION_NAME = 'ST Phone System';
             const s = window.STPhone.Apps.Settings.getSettings();
             // chatToSms 값이 존재하고 false라면(꺼져있다면) 중단
             if (s.chatToSms === false) {
+                return;
+            }
+        }
+        
+        // [추가] 유저 메시지가 하나도 없으면 스킵 (그리팅/초기 메시지 방지)
+        const ctx = window.SillyTavern?.getContext?.();
+        if (ctx?.chat) {
+            const userMsgCount = ctx.chat.reduce((count, m) => count + (m?.is_user ? 1 : 0), 0);
+            if (userMsgCount === 0) {
                 return;
             }
         }
