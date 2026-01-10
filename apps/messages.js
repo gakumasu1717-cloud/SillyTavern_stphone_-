@@ -1302,15 +1302,22 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             if (window.STPhone.Apps?.Instagram) {
                 const Instagram = window.STPhone.Apps.Instagram;
                 
-                // [IG_POST] 태그 제거 (이미 위에서 처리했으므로 여기선 제거만)
-                if (lineText.includes('[IG_POST]')) {
+                // [IG_POST] 태그 및 불완전한 조각 제거
+                if (lineText.includes('[IG_POST]') || lineText.includes('[/IG_POST]')) {
                     lineText = lineText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                    lineText = lineText.replace(/\[IG_POST\][^\[]*/gi, '').trim(); // 시작 태그만 있는 경우
+                    lineText = lineText.replace(/[^\]]*\[\/IG_POST\]/gi, '').trim(); // 끝 태그만 있는 경우
                 }
                 
-                // [IG_REPLY] 태그 제거 (이미 위에서 처리했으므로 여기선 제거만)
-                if (lineText.includes('[IG_REPLY]')) {
+                // [IG_REPLY] 태그 및 불완전한 조각 제거
+                if (lineText.includes('[IG_REPLY]') || lineText.includes('[/IG_REPLY]')) {
                     lineText = lineText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                    lineText = lineText.replace(/\[IG_REPLY\][^\[]*/gi, '').trim();
+                    lineText = lineText.replace(/[^\]]*\[\/IG_REPLY\]/gi, '').trim();
                 }
+                
+                // 빈 줄이면 스킵
+                if (!lineText) continue;
                 
                 // 괄호 형식: (Instagram: "캡션")
                 if (lineText.includes('(Instagram:')) {
