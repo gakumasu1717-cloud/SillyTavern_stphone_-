@@ -2158,20 +2158,14 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
 
     // 채팅에서 인스타 포스팅/답글 감지
     function parseInstagramFromChat(charName, message) {
-        console.log('[Instagram] parseInstagramFromChat 호출:', charName, message?.substring(0, 50));
-        
         if (!message) return;
         
         // 인스타그램 앱 설치 여부 체크
-        if (!isInstagramInstalled()) {
-            console.log('[Instagram] parseInstagramFromChat: 앱 미설치');
-            return;
-        }
+        if (!isInstagramInstalled()) return;
         
         // 1. 새 고정 형식
         const fixedPostMatch = message.match(INSTAGRAM_PATTERNS.fixedPost);
         if (fixedPostMatch && fixedPostMatch[1]) {
-            console.log('[Instagram] [IG_POST] 태그 감지됨:', fixedPostMatch[1].substring(0, 50));
             createPostFromChat(charName, fixedPostMatch[1].trim());
         }
         
@@ -2270,31 +2264,19 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // 채팅 감지로 포스트 생성
     async function createPostFromChat(charName, caption) {
-        console.log('[Instagram] createPostFromChat 호출됨:', charName, caption?.substring(0, 30));
-        
         // 인스타그램 앱 설치 여부 체크
-        if (!isInstagramInstalled()) {
-            console.log('[Instagram] 앱 미설치로 중단');
-            return;
-        }
+        if (!isInstagramInstalled()) return;
         
         // 이미 생성 중이면 무시
-        if (isGeneratingPost) {
-            console.log('[Instagram] 이미 포스트 생성 중, 요청 무시');
-            return;
-        }
+        if (isGeneratingPost) return;
         
         // 중복 방지: 같은 캡션으로 60초 내 재생성 방지
         const captionKey = `${charName}:${caption.substring(0, 50)}`;
-        if (recentPostCaptions.has(captionKey)) {
-            console.log('[Instagram] 중복 포스트 요청 무시:', captionKey);
-            return;
-        }
+        if (recentPostCaptions.has(captionKey)) return;
         recentPostCaptions.add(captionKey);
-        setTimeout(() => recentPostCaptions.delete(captionKey), 60000); // 60초
+        setTimeout(() => recentPostCaptions.delete(captionKey), 60000);
         
         isGeneratingPost = true;
-        console.log('[Instagram] 포스트 생성 진행 중...', charName);
         
         try {
             // 이미지 생성

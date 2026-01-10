@@ -316,6 +316,8 @@ const EXTENSION_NAME = 'ST Phone System';
                 messageText = messageText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
                 messageText = messageText.replace(/\[Instagram [^\]]+\][^\n]*/gi, '').trim();
                 messageText = messageText.replace(/\(Instagram[^)]*\)/gi, '').trim();
+                // (Photo: ...) 패턴 제거 (인스타 포스팅용 이미지 설명)
+                messageText = messageText.replace(/\(Photo:\s*[^)]*\)/gi, '').trim();
                 
                 if (messageText && Messages) {
                     // 발신자가 유저인지 캐릭터인지 판단
