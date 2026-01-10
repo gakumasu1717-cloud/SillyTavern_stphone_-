@@ -284,6 +284,33 @@ const EXTENSION_NAME = 'ST Phone System';
                 const receiverName = match[2].trim();
                 let messageText = match[3].trim();
                 
+                // [NEW] Instagram 포스트 생성 (패턴 제거 전에!)
+                const igPostMatch = messageText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+                if (igPostMatch) {
+                    const caption = igPostMatch[1].trim();
+                    const Store = window.STPhone?.Apps?.Store;
+                    if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                        const Instagram = window.STPhone?.Apps?.Instagram;
+                        if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                            console.log('[STPhone] processSync - Instagram 포스트 생성:', senderName, caption.substring(0, 50));
+                            Instagram.createPostFromChat(senderName, caption);
+                        }
+                    }
+                }
+                
+                // [NEW] Instagram 답글 처리 (패턴 제거 전에!)
+                const igReplyMatch = messageText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+                if (igReplyMatch) {
+                    const replyText = igReplyMatch[1].trim();
+                    const Store = window.STPhone?.Apps?.Store;
+                    if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                        const Instagram = window.STPhone?.Apps?.Instagram;
+                        if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                            Instagram.addReplyFromChat(senderName, replyText);
+                        }
+                    }
+                }
+                
                 // Instagram 패턴 제거 (새 고정 형식 + 레거시)
                 messageText = messageText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
                 messageText = messageText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
