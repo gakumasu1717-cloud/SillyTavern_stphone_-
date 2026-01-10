@@ -2811,6 +2811,28 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                 console.warn('[Messages] 캘린더 프롬프트 로드 실패(무시됨):', calErr);
             }
 
+            // [NEW] Instagram 프롬프트 (설치된 경우에만)
+            let instagramPrompt = '';
+            try {
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    instagramPrompt = `
+### 📸 Instagram Posting
+To post on Instagram, append this tag at the END of your message:
+[IG_POST]Your caption here in Korean[/IG_POST]
+
+Example: "오늘 날씨 좋다~ [IG_POST]오늘 카페에서 작업 중! ☕️[/IG_POST]"
+
+Rules:
+- Only post when it makes sense (sharing moments, achievements, etc.)
+- Caption should be casual and short (1-2 sentences, Korean)
+- Do NOT include hashtags
+- Do NOT post every message - only when naturally appropriate`;
+                }
+            } catch (igErr) {
+                console.warn('[Messages] Instagram 프롬프트 로드 실패(무시됨):', igErr);
+            }
+
             // [멀티턴 방식] 메시지 배열 구성
             const messages = [];
 
@@ -2825,6 +2847,7 @@ Personality: ${settings.userPersonality || '(not specified)'}
 
 ${systemPrompt}
 ${calendarEventsPrompt}
+${instagramPrompt}
 
 ### Instructions
 You are ${contact.name} responding to a text message from ${myName}.
@@ -2891,6 +2914,38 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                     if ($('#st-typing').length) $('#st-typing').hide();
                     isGenerating = false; // 종료 상태 처리 추가
                     return;
+                }
+            }
+
+            // [NEW] Instagram 포스팅 태그 처리
+            const igPostMatch = replyText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+            if (igPostMatch) {
+                const igCaption = igPostMatch[1].trim();
+                replyText = replyText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                
+                // Instagram 앱이 설치되어 있으면 포스트 생성
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    const Instagram = window.STPhone?.Apps?.Instagram;
+                    if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                        Instagram.createPostFromChat(contact.name, igCaption);
+                        console.log('[Messages] Instagram 포스트 생성 요청:', igCaption.substring(0, 50));
+                    }
+                }
+            }
+            
+            // [NEW] Instagram 답글 태그 처리
+            const igReplyMatch = replyText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+            if (igReplyMatch) {
+                const igReplyText = igReplyMatch[1].trim();
+                replyText = replyText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    const Instagram = window.STPhone?.Apps?.Instagram;
+                    if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                        Instagram.addReplyFromChat(contact.name, igReplyText);
+                    }
                 }
             }
 

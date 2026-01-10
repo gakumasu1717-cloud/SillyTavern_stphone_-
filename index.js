@@ -208,7 +208,9 @@ const EXTENSION_NAME = 'ST Phone System';
             /^\s*\[📲/i,           // 에어드롭 거절 로그 숨기기
             /^\s*\[ts:/i,          // [NEW] 타임스탬프 로그 숨기기
             /^\s*\[⏰/i,           // [NEW] 타임스탬프 로그 숨기기 (Time Skip)
-            /^\s*\[Instagram/i,    // [NEW] 인스타그램 로그 숨기기
+            /^\s*\[Instagram/i,    // 인스타그램 레거시 로그 숨기기
+            /^\s*\[IG_POST\]/i,    // 인스타그램 새 고정 형식 숨기기
+            /^\s*\[IG_REPLY\]/i,   // 인스타그램 답글 형식 숨기기
         ];
 
 
@@ -254,7 +256,9 @@ const EXTENSION_NAME = 'ST Phone System';
                 const receiverName = match[2].trim();
                 let messageText = match[3].trim();
                 
-                // Instagram 패턴 제거
+                // Instagram 패턴 제거 (새 고정 형식 + 레거시)
+                messageText = messageText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                messageText = messageText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
                 messageText = messageText.replace(/\[Instagram [^\]]+\][^\n]*/gi, '').trim();
                 messageText = messageText.replace(/\(Instagram[^)]*\)/gi, '').trim();
                 

@@ -541,7 +541,70 @@ Write a short comment (1-2 sentences, in Korean).
 Output ONLY the comment text, no quotes.`
     };
 
+    // ========== 정규식 패턴 상수 ==========
+    // 새 고정 형식: [IG_POST]캡션내용[/IG_POST]
+    const INSTAGRAM_PATTERNS = {
+        // 새 고정 형식 (권장)
+        fixedPost: /\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i,
+        fixedPostGlobal: /\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi,
+        fixedReply: /\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i,
+        fixedReplyGlobal: /\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi,
+        // 기존 패턴 (하위 호환)
+        legacyPost: /\[Instagram 포스팅\][^"]*"([^"]+)"/i,
+        legacyPostGlobal: /\[Instagram 포스팅\][^\n]*/gi,
+        legacyReply: /\[Instagram 답글\][^"]*"([^"]+)"/i,
+        legacyReplyGlobal: /\[Instagram 답글\][^\n]*/gi,
+        legacyComment: /\[Instagram 댓글\][^\n]*/gi,
+        // 괄호 형식 (하위 호환)
+        parenPost: /\(Instagram:\s*"([^"]+)"\)/i,
+        parenPostGlobal: /\(Instagram:\s*"[^"]+"\)/gi
+    };
+    
+    // HTML 엔티티 디코딩 함수
+    function decodeHtmlEntities(text) {
+        if (!text) return '';
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = text;
+        return textarea.value;
+    }
+
     // ========== 유틸리티 함수 ==========
+    
+    // 앱 설치 여부 확인 헬퍼
+    function isInstagramInstalled() {
+        const Store = window.STPhone?.Apps?.Store;
+        // Store가 없거나 isInstalled 함수가 없으면 설치된 것으로 간주 (하위 호환)
+        if (!Store || typeof Store.isInstalled !== 'function') {
+            console.log('[Instagram] Store 또는 isInstalled 함수 없음 - 설치된 것으로 간주');
+            return true;
+        }
+        return Store.isInstalled('instagram');
+    }
+
+    // URL 유효성 검사 (XSS 방어)
+    function isValidImageUrl(url) {
+        if (!url || typeof url !== 'string') return false;
+        try {
+            const parsed = new URL(url);
+            // http, https, data URI만 허용
+            if (!['http:', 'https:', 'data:'].includes(parsed.protocol)) {
+                return false;
+            }
+            // javascript: 프로토콜 차단
+            if (url.toLowerCase().includes('javascript:')) {
+                return false;
+            }
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // 안전한 이미지 URL 반환
+    function sanitizeImageUrl(url) {
+        return isValidImageUrl(url) ? url : '';
+    }
+
     function stripDateTag(text) {
         if (!text) return '';
         // AI 응답에서 날짜 태그 제거: [2024년 5월 22일 수요일]
@@ -584,9 +647,26 @@ Output ONLY the comment text, no quotes.`
         const key = getStorageKey();
         if (!key) return;
         try {
+            // localStorage 용량 관리: 최신 100개만 유지
+            const MAX_POSTS = 100;
+            if (posts.length > MAX_POSTS) {
+                console.log(`[Instagram] 게시물 수 초과 (${posts.length}), 최신 ${MAX_POSTS}개만 유지`);
+                posts = posts.slice(0, MAX_POSTS);
+            }
             localStorage.setItem(key, JSON.stringify(posts));
         } catch (e) {
             console.error('[Instagram] 저장 실패:', e);
+            // QuotaExceededError 시 오래된 게시물 정리 시도
+            if (e.name === 'QuotaExceededError') {
+                console.warn('[Instagram] localStorage 용량 초과, 오래된 게시물 정리 중...');
+                posts = posts.slice(0, 50); // 절반으로 줄임
+                try {
+                    localStorage.setItem(key, JSON.stringify(posts));
+                    console.log('[Instagram] 정리 후 저장 성공');
+                } catch (e2) {
+                    console.error('[Instagram] 정리 후에도 저장 실패:', e2);
+                }
+            }
         }
     }
 
@@ -681,15 +761,14 @@ Output ONLY the comment text, no quotes.`
         }).join('\n');
     }
 
-    function getCharacterInfo() {
-        const ctx = window.SillyTavern?.getContext?.();
-        if (!ctx) return { name: 'Character', personality: '' };
-        
-        const charName = ctx.name2 || ctx.characters?.[ctx.characterId]?.name || 'Character';
-        const charData = ctx.characters?.[ctx.characterId] || {};
-        const personality = charData.personality || charData.description || '';
-        
-        return { name: charName, personality };
+    // 연락처에서 캐릭터 성격 정보 가져오기 (Contacts 앱에 저장된 정보 사용)
+    function getCharacterPersonality(charName) {
+        const contact = getContactByName(charName);
+        if (contact?.persona) {
+            return contact.persona;
+        }
+        // 연락처에 없으면 빈 문자열
+        return '';
     }
 
     function getContactByName(name) {
@@ -1009,12 +1088,17 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             const result = await generateWithAI(prompt, 400);
             const jsonMatch = String(result || '').match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                return {
-                    shouldPost: !!parsed.shouldPost,
-                    caption: parsed.caption || '',
-                    imagePrompt: parsed.imagePrompt || ''
-                };
+                try {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    return {
+                        shouldPost: !!parsed.shouldPost,
+                        caption: parsed.caption || '',
+                        imagePrompt: parsed.imagePrompt || ''
+                    };
+                } catch (parseError) {
+                    console.warn('[Instagram] JSON 파싱 실패:', parseError.message);
+                    console.warn('[Instagram] 파싱 시도한 JSON:', jsonMatch[0].substring(0, 200) + (jsonMatch[0].length > 200 ? '...' : ''));
+                }
             }
         } catch (e) {
             console.warn('[Instagram] AI 호출 실패:', e);
@@ -1025,6 +1109,11 @@ If the situation is not suitable for posting, set shouldPost to false.`;
 
     // ========== 프로액티브 포스트 ==========
     async function checkProactivePost(charName) {
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) {
+            return;
+        }
+        
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         
         if (settings.instagramPostEnabled === false) return;
@@ -1035,9 +1124,10 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         const roll = Math.random() * 100;
         if (roll > chance) return;
 
-        const contact = getContactByName(charName);
-        const charInfo = getCharacterInfo();
-        const personality = contact?.personality || charInfo.personality || '';
+        // 연락처에서 성격 정보 가져오기
+        const personality = getCharacterPersonality(charName);
+        
+        console.log('[Instagram] 프로액티브 포스트 시도:', { charName, personalityLength: personality.length });
 
         isGeneratingPost = true;
         
@@ -1090,10 +1180,12 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         try {
             loadPosts();
             
-            const charInfo = getCharacterInfo();
-            const posterName = charName || charInfo.name;
-            const contact = getContactByName(posterName);
-            const personality = contact?.personality || charInfo.personality || '';
+            // 연락처에서 캐릭터 이름과 성격 가져오기
+            const ctx = window.SillyTavern?.getContext?.();
+            const posterName = charName || ctx?.name2 || 'Character';
+            const personality = getCharacterPersonality(posterName);
+            
+            console.log('[Instagram] 캐릭터 포스트 생성:', { posterName, personalityLength: personality.length });
 
             // 캡션이 없으면 생성
             let caption = preGeneratedCaption;
@@ -1364,9 +1456,10 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
             }
         }
 
-        // 이미지가 있을 때만 표시
-        const imageHtml = post.imageUrl 
-            ? `<img class="st-insta-post-image" src="${post.imageUrl}" alt="" loading="lazy">`
+        // 이미지가 있을 때만 표시 (URL 검증으로 XSS 방어)
+        const safeImageUrl = sanitizeImageUrl(post.imageUrl);
+        const imageHtml = safeImageUrl 
+            ? `<img class="st-insta-post-image" src="${safeImageUrl}" alt="" loading="lazy">`
             : '';
 
         return `
@@ -1718,10 +1811,11 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
 
         // 캐릭터 답댓글
         setTimeout(() => {
-            const charInfo = getCharacterInfo();
+            const ctx = window.SillyTavern?.getContext?.();
+            const charName = ctx?.name2 || 'Character';
             if (!post.isUser) {
                 // 캐릭터 게시물에 댓글 달면 캐릭터가 답글
-                checkCharacterReplyToComment(postId, charInfo.name, user.name, text);
+                checkCharacterReplyToComment(postId, charName, user.name, text);
             }
         }, 2000);
     }
@@ -1731,8 +1825,8 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
         const post = posts.find(p => p.id === postId);
         if (!post || post.author.toLowerCase() !== charName.toLowerCase()) return;
 
-        const contact = getContactByName(charName);
-        const personality = contact?.personality || getCharacterInfo().personality || '';
+        // 연락처에서 성격 정보 가져오기
+        const personality = getCharacterPersonality(charName);
 
         const prompt = `You are ${charName} on Instagram. ${commenterName} commented on your post: "${commentText}"
 Your post caption was: "${post.caption}"
@@ -1801,14 +1895,12 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         const post = posts.find(p => p.id === postId);
         if (!post) return;
 
-        const isOwn = post.isUser;
-        const menuItems = isOwn
-            ? ['삭제', '취소']
-            : ['신고', '취소'];
+        // 모든 게시물 삭제 가능 (내 게시물/캐릭터 게시물 모두)
+        const menuItems = ['삭제', '취소'];
 
         const choice = prompt(`게시물 옵션:\n1. ${menuItems[0]}\n2. ${menuItems[1]}\n\n번호를 입력하세요:`);
 
-        if (choice === '1' && isOwn) {
+        if (choice === '1') {
             posts = posts.filter(p => p.id !== postId);
             savePosts();
             toastr.info('게시물이 삭제되었습니다');
@@ -1820,7 +1912,22 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     let listenerRegistered = false;
     
     function initProactivePostListener() {
-        if (listenerRegistered) return;
+        console.log('[Instagram] initProactivePostListener 호출됨');
+        
+        if (listenerRegistered) {
+            console.log('[Instagram] 리스너 이미 등록됨');
+            return;
+        }
+        
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) {
+            console.log('[Instagram] 앱 미설치 - 프로액티브 리스너 등록 안 함');
+            // 나중에 설치될 수 있으므로 주기적으로 재체크
+            setTimeout(initProactivePostListener, 10000);
+            return;
+        }
+        
+        console.log('[Instagram] 리스너 등록 시작...');
         
         const checkInterval = setInterval(() => {
             const ctx = window.SillyTavern?.getContext?.();
@@ -1856,11 +1963,22 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // Phone.js 방식: 채팅창 DOM 감시
     function startInstagramObserver() {
+        console.log('[Instagram] startInstagramObserver 호출됨');
+        
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) {
+            console.log('[Instagram] 앱 미설치 - Observer 시작 안 함');
+            return;
+        }
+        
         const chatRoot = document.getElementById('chat');
         if (!chatRoot) {
+            console.log('[Instagram] chat 요소 없음 - 2초 후 재시도');
             setTimeout(startInstagramObserver, 2000);
             return;
         }
+        
+        console.log('[Instagram] Observer 등록 성공');
 
         // 기존 메시지들 먼저 태그만 제거 (토스트 없이)
         const existingMsgs = chatRoot.querySelectorAll('.mes');
@@ -1897,27 +2015,33 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         let html = textDiv.innerHTML;
         let modified = false;
         
-        // 새 패턴
-        if (html.includes('(Instagram:')) {
-            html = html.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
+        // 새 고정 형식
+        if (html.includes('[IG_POST]')) {
+            html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
             modified = true;
         }
-        if (html.includes('(Instagram Reply:')) {
-            html = html.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
+        if (html.includes('[IG_REPLY]')) {
+            html = html.replace(INSTAGRAM_PATTERNS.fixedReplyGlobal, '');
             modified = true;
         }
         
-        // 기존 패턴
+        // 괄호 형식
+        if (html.includes('(Instagram:')) {
+            html = html.replace(INSTAGRAM_PATTERNS.parenPostGlobal, '');
+            modified = true;
+        }
+        
+        // 기존 레거시 패턴
         if (html.includes('[Instagram 포스팅]')) {
-            html = html.replace(/\[Instagram 포스팅\][^\n<]*/gi, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyPostGlobal, '');
             modified = true;
         }
         if (html.includes('[Instagram 답글]')) {
-            html = html.replace(/\[Instagram 답글\][^\n<]*/gi, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyReplyGlobal, '');
             modified = true;
         }
         if (html.includes('[Instagram 댓글]')) {
-            html = html.replace(/\[Instagram 댓글\][^\n<]*/gi, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyComment, '');
             modified = true;
         }
         
@@ -1930,60 +2054,77 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
 
     // 메시지에서 Instagram 포스팅 태그 감지 (새 메시지용 - 토스트 O)
     function checkMessageForInstagram(msgNode) {
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) {
+            return;
+        }
+        
         if (msgNode.dataset.instagramChecked) return;
         if (msgNode.getAttribute('is_user') === 'true') return;
-        // 📩 패턴으로 숨겨진 메시지는 스킵 (index.js에서 이미 처리됨)
         if (msgNode.classList.contains('st-phone-hidden-log') || msgNode.style.display === 'none') return;
 
         const textDiv = msgNode.querySelector('.mes_text');
         if (!textDiv) return;
 
-        let html = textDiv.innerHTML;
+        // HTML 엔티티 디코딩
+        let html = decodeHtmlEntities(textDiv.innerHTML);
         const fallbackName = msgNode.getAttribute('ch_name') || "Unknown";
         let modified = false;
         
-        // 새 패턴: (Instagram: "캡션")
+        // 1. 새 고정 형식: [IG_POST]캡션[/IG_POST] (권장)
+        if (html.includes('[IG_POST]')) {
+            const postMatch = html.match(INSTAGRAM_PATTERNS.fixedPost);
+            if (postMatch && postMatch[1]) {
+                console.log('[Instagram] 고정 형식 포스트 감지:', postMatch[1].substring(0, 50));
+                createPostFromChat(fallbackName, postMatch[1].trim());
+            }
+            html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
+            modified = true;
+        }
+        
+        // 2. 새 고정 형식: [IG_REPLY]답글[/IG_REPLY]
+        if (html.includes('[IG_REPLY]')) {
+            const replyMatch = html.match(INSTAGRAM_PATTERNS.fixedReply);
+            if (replyMatch && replyMatch[1]) {
+                addReplyFromChat(fallbackName, replyMatch[1].trim());
+            }
+            html = html.replace(INSTAGRAM_PATTERNS.fixedReplyGlobal, '');
+            modified = true;
+        }
+        
+        // 3. 괄호 형식: (Instagram: "캡션") - 하위 호환
         if (html.includes('(Instagram:')) {
-            const postMatch = html.match(/\(Instagram:\s*"([^"]+)"\)/i);
-            if (postMatch) {
-                createPostFromChat(fallbackName, postMatch[1]);
+            const postMatch = html.match(INSTAGRAM_PATTERNS.parenPost);
+            if (postMatch && postMatch[1]) {
+                createPostFromChat(fallbackName, postMatch[1].trim());
             }
-            html = html.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
+            html = html.replace(INSTAGRAM_PATTERNS.parenPostGlobal, '');
             modified = true;
         }
         
-        // 새 패턴: (Instagram Reply: "답글")
-        if (html.includes('(Instagram Reply:')) {
-            const replyMatch = html.match(/\(Instagram Reply:\s*"([^"]+)"\)/i);
-            if (replyMatch) {
-                addReplyFromChat(fallbackName, replyMatch[1]);
-            }
-            html = html.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
-            modified = true;
-        }
-        
-        // 기존 패턴들도 유지 (하위 호환)
+        // 4. 레거시 패턴: [Instagram 포스팅] - 하위 호환
         if (html.includes('[Instagram 포스팅]')) {
-            const postMatch = html.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
-            if (postMatch) {
-                createPostFromChat(fallbackName, postMatch[1]);
+            const postMatch = html.match(INSTAGRAM_PATTERNS.legacyPost);
+            if (postMatch && postMatch[1]) {
+                createPostFromChat(fallbackName, postMatch[1].trim());
             }
-            html = html.replace(/\[Instagram 포스팅\][^\n<]*/gi, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyPostGlobal, '');
             modified = true;
         }
         
+        // 5. 레거시 패턴: [Instagram 답글]
         if (html.includes('[Instagram 답글]')) {
-            const replyMatch = html.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
-            if (replyMatch) {
-                addReplyFromChat(fallbackName, replyMatch[1]);
+            const replyMatch = html.match(INSTAGRAM_PATTERNS.legacyReply);
+            if (replyMatch && replyMatch[1]) {
+                addReplyFromChat(fallbackName, replyMatch[1].trim());
             }
-            html = html.replace(/\[Instagram 답글\][^\n<]*/gi, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyReplyGlobal, '');
             modified = true;
         }
         
-        // 댓글 패턴도 제거
+        // 6. 레거시 패턴: [Instagram 댓글] - 제거만
         if (html.includes('[Instagram 댓글]')) {
-            html = html.replace(/\[Instagram 댓글\][^\n<]*/gi, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyComment, '');
             modified = true;
         }
         
@@ -1997,14 +2138,35 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     function parseInstagramFromChat(charName, message) {
         if (!message) return;
         
-        const postMatch = message.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
-        if (postMatch) {
-            createPostFromChat(charName, postMatch[1]);
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) return;
+        
+        // 1. 새 고정 형식
+        const fixedPostMatch = message.match(INSTAGRAM_PATTERNS.fixedPost);
+        if (fixedPostMatch && fixedPostMatch[1]) {
+            createPostFromChat(charName, fixedPostMatch[1].trim());
         }
         
-        const replyMatch = message.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
-        if (replyMatch) {
-            addReplyFromChat(charName, replyMatch[1]);
+        const fixedReplyMatch = message.match(INSTAGRAM_PATTERNS.fixedReply);
+        if (fixedReplyMatch && fixedReplyMatch[1]) {
+            addReplyFromChat(charName, fixedReplyMatch[1].trim());
+        }
+        
+        // 2. 괄호 형식
+        const parenPostMatch = message.match(INSTAGRAM_PATTERNS.parenPost);
+        if (parenPostMatch && parenPostMatch[1]) {
+            createPostFromChat(charName, parenPostMatch[1].trim());
+        }
+        
+        // 3. 레거시 패턴 (하위 호환)
+        const legacyPostMatch = message.match(INSTAGRAM_PATTERNS.legacyPost);
+        if (legacyPostMatch && legacyPostMatch[1]) {
+            createPostFromChat(charName, legacyPostMatch[1].trim());
+        }
+        
+        const legacyReplyMatch = message.match(INSTAGRAM_PATTERNS.legacyReply);
+        if (legacyReplyMatch && legacyReplyMatch[1]) {
+            addReplyFromChat(charName, legacyReplyMatch[1].trim());
         }
     }
     
@@ -2013,6 +2175,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // 채팅 감지로 답글 추가
     function addReplyFromChat(charName, replyText) {
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) return;
+        
         // 중복 방지
         const replyKey = `${charName}:${replyText}`;
         if (recentReplies.has(replyKey)) return;
@@ -2077,6 +2242,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // 채팅 감지로 포스트 생성
     async function createPostFromChat(charName, caption) {
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) return;
+        
         if (isGeneratingPost) return;
         
         // 중복 방지: 같은 캡션으로 5초 내 재생성 방지
