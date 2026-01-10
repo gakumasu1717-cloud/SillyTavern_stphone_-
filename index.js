@@ -195,62 +195,19 @@ const EXTENSION_NAME = 'ST Phone System';
     }
 
     // [신규 기능] 폰 로그인지 검사하고 숨겨주는 함수
-    // isNewMessage: true면 새 메시지 (Instagram 포스트 생성), false면 기존 메시지 (숨기기만)
+    // Instagram 포스트 생성은 messages.js에서만 담당 (새 AI 응답 생성 시에만)
+    // 여기서는 태그 숨기기만 담당
     function hideSystemLogs(node, isNewMessage = false) {
         // 이미 처리된 건 스킵
         if (node.classList.contains('st-phone-hidden-log')) return;
-        if (node.dataset.igProcessed) return; // Instagram 처리 중복 방지
 
         const textDiv = node.querySelector('.mes_text');
         if (!textDiv) return;
 
-        // [NEW] 메시지 내부의 [IG_POST]...[/IG_POST] 태그 감지 및 Instagram 앱으로 전달
         const originalHtml = textDiv.innerHTML;
-        const originalText = textDiv.innerText;
         
-        // Instagram 포스트 태그 감지 및 처리
-        const igPostMatch = originalText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
-        if (igPostMatch) {
-            node.dataset.igProcessed = 'true'; // 중복 처리 방지
-            const caption = igPostMatch[1].trim();
-            
-            // 새 메시지일 때만 Instagram 포스트 생성
-            if (isNewMessage) {
-                console.log('[STPhone] [IG_POST] 새 메시지 감지:', caption.substring(0, 50));
-                
-                // Instagram 앱이 설치되어 있으면 포스트 생성
-                const Store = window.STPhone?.Apps?.Store;
-                const isInstalled = Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram');
-                
-                if (isInstalled) {
-                    const Instagram = window.STPhone?.Apps?.Instagram;
-                    if (Instagram && typeof Instagram.createPostFromChat === 'function') {
-                        // 발신자 이름 추출 (캐릭터 이름)
-                        const nameDiv = node.querySelector('.ch_name, .name_text');
-                        const characterName = nameDiv?.innerText?.trim() || 'Unknown';
-                        console.log('[STPhone] Instagram 포스트 생성:', characterName);
-                        Instagram.createPostFromChat(characterName, caption);
-                    }
-                }
-            }
-        }
-        
-        // Instagram 답글 태그 감지 및 처리
-        const igReplyMatch = originalText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
-        if (igReplyMatch) {
-            const replyText = igReplyMatch[1].trim();
-            const Store = window.STPhone?.Apps?.Store;
-            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
-                const Instagram = window.STPhone?.Apps?.Instagram;
-                if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
-                    const nameDiv = node.querySelector('.ch_name, .name_text');
-                    const characterName = nameDiv?.innerText?.trim() || 'Unknown';
-                    Instagram.addReplyFromChat(characterName, replyText);
-                }
-            }
-        }
-        
-        // 태그를 DOM에서 제거 (표시 안 되게)
+        // [IG_POST], [IG_REPLY] 태그를 DOM에서 제거 (표시 안 되게)
+        // Instagram 포스트 생성은 messages.js에서 담당하므로 여기서는 숨기기만
         const cleanedHtml = originalHtml
             .replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '')
             .replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '');
