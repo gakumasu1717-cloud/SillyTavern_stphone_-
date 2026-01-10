@@ -150,6 +150,8 @@ const EXTENSION_NAME = 'ST Phone System';
     }
 
     // 감시자 함수 정의 (Observer)
+    let chatLoadedTime = 0; // 채팅 로드 시간 추적
+    
     function setupChatObserver() {
         // 채팅창(#chat)이 존재할 때까지 대기
         const target = document.querySelector('#chat');
@@ -159,6 +161,7 @@ const EXTENSION_NAME = 'ST Phone System';
         }
 
         // 1. [핵심] 챗이 로드되자마자 현재 화면에 있는 로그들을 싹 검사해서 숨김
+        chatLoadedTime = Date.now(); // 채팅 로드 시간 기록
         applyHideLogicToAll();
 
         // 2. 새 메시지가 추가되는지 감시
@@ -167,8 +170,9 @@ const EXTENSION_NAME = 'ST Phone System';
                 // 노드가 추가될 때 (새 메시지, 혹은 채팅 로드)
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1 && node.classList.contains('mes')) {
-                        // 순서 중요: 먼저 숨길 건지 판단하고 -> 그 다음 폰과 동기화
-                        hideSystemLogs(node, true); // 새 메시지 = Instagram 포스트 생성 O
+                        // 채팅 로드 후 2초가 지났는지 확인 (2초 이후 = 진짜 새 메시지)
+                        const isReallyNewMessage = (Date.now() - chatLoadedTime) > 2000;
+                        hideSystemLogs(node, isReallyNewMessage);
                         processSync(node);
                     }
                 });
@@ -177,6 +181,17 @@ const EXTENSION_NAME = 'ST Phone System';
 
         observer.observe(target, { childList: true, subtree: true });
         console.log(`[${EXTENSION_NAME}] Chat Observer & Auto-Hider Started.`);
+        
+        // 채팅 변경 이벤트 감지하여 chatLoadedTime 갱신
+        if (window.SillyTavern?.getContext) {
+            const ctx = window.SillyTavern.getContext();
+            if (ctx.eventSource) {
+                ctx.eventSource.on('chatLoaded', () => {
+                    chatLoadedTime = Date.now();
+                    console.log('[STPhone] Chat loaded, resetting timer');
+                });
+            }
+        }
     }
 
     // [신규 기능] 폰 로그인지 검사하고 숨겨주는 함수

@@ -2282,17 +2282,23 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // 인스타그램 앱 설치 여부 체크
         if (!isInstagramInstalled()) return;
         
-        if (isGeneratingPost) return;
+        // 이미 생성 중이면 무시
+        if (isGeneratingPost) {
+            console.log('[Instagram] 이미 포스트 생성 중, 요청 무시');
+            return;
+        }
         
-        // 중복 방지: 같은 캡션으로 5초 내 재생성 방지
-        const captionKey = `${charName}:${caption}`;
+        // 중복 방지: 같은 캡션으로 60초 내 재생성 방지
+        const captionKey = `${charName}:${caption.substring(0, 50)}`;
         if (recentPostCaptions.has(captionKey)) {
+            console.log('[Instagram] 중복 포스트 요청 무시:', captionKey);
             return;
         }
         recentPostCaptions.add(captionKey);
-        setTimeout(() => recentPostCaptions.delete(captionKey), 5000);
+        setTimeout(() => recentPostCaptions.delete(captionKey), 60000); // 60초
         
         isGeneratingPost = true;
+        console.log('[Instagram] 포스트 생성 시작:', charName, caption.substring(0, 50));
         
         try {
             // 이미지 생성
