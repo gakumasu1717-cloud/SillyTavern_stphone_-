@@ -2209,40 +2209,53 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         loadPosts();
         const user = getUserInfo();
         
-        // 유저가 댓글 단 게시물 중 아직 캐릭터 답글이 없는 것 찾기
         let targetPost = null;
-        let targetUserComment = null;
         
+        // 1. 먼저 유저가 올린 게시물 중 캐릭터 댓글이 없는 것 찾기
         for (const post of posts) {
-            // 유저 댓글 찾기
-            const userComments = post.comments.filter(c => c.author === user.name);
-            if (userComments.length === 0) continue;
-            
-            // 각 유저 댓글에 대해 캐릭터 답글이 있는지 확인
-            for (const userComment of userComments) {
-                // 이 유저 댓글 이후에 캐릭터 답글이 있는지 확인
-                const hasCharReply = post.comments.some(c => 
-                    c.author.toLowerCase() === charName.toLowerCase() && 
-                    c.id > userComment.id
+            if (post.author === user.name || post.isUser) {
+                // 이 게시물에 캐릭터 댓글이 있는지 확인
+                const hasCharComment = post.comments.some(c => 
+                    c.author.toLowerCase() === charName.toLowerCase()
                 );
                 
-                if (!hasCharReply) {
-                    // 아직 답글 안 달린 유저 댓글 발견
+                if (!hasCharComment) {
                     targetPost = post;
-                    targetUserComment = userComment;
                     break;
                 }
             }
-            
-            if (targetPost) break;
         }
         
-        // 답글 안 달린 유저 댓글 없으면 답글 안 함
-        if (!targetPost || !targetUserComment) {
-            return;
+        // 2. 유저 게시물 없으면, 유저가 댓글 단 게시물 중 답글 없는 것 찾기
+        if (!targetPost) {
+            for (const post of posts) {
+                const userComments = post.comments.filter(c => c.author === user.name);
+                if (userComments.length === 0) continue;
+                
+                for (const userComment of userComments) {
+                    const hasCharReply = post.comments.some(c => 
+                        c.author.toLowerCase() === charName.toLowerCase() && 
+                        c.id > userComment.id
+                    );
+                    
+                    if (!hasCharReply) {
+                        targetPost = post;
+                        break;
+                    }
+                }
+                
+                if (targetPost) break;
+            }
         }
         
-        // 답글 추가
+        // 대상 게시물 없으면 가장 최근 게시물에 댓글
+        if (!targetPost && posts.length > 0) {
+            targetPost = posts[0];
+        }
+        
+        if (!targetPost) return;
+        
+        // 답글/댓글 추가
         targetPost.comments.push({
             id: Date.now(),
             author: charName,
