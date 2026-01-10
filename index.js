@@ -187,6 +187,15 @@ const EXTENSION_NAME = 'ST Phone System';
         const textDiv = node.querySelector('.mes_text');
         if (!textDiv) return;
 
+        // [NEW] 메시지 내부의 [IG_POST]...[/IG_POST] 태그 제거 (표시 안 되게)
+        const originalHtml = textDiv.innerHTML;
+        const cleanedHtml = originalHtml
+            .replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '')
+            .replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '');
+        if (cleanedHtml !== originalHtml) {
+            textDiv.innerHTML = cleanedHtml;
+        }
+
         const text = textDiv.innerText;
 
 /* 수정후 코드 (안전한 버전) */
