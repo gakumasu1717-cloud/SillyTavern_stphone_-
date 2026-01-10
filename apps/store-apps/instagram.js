@@ -786,6 +786,26 @@ Output ONLY the comment text, no quotes.`
         };
     }
 
+    // 현재 캐릭터 정보 가져오기 (연락처에서)
+    function getCharacterInfo() {
+        const contacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
+        // 첫 번째 연락처를 캐릭터로 간주 (보통 메인 캐릭터)
+        if (contacts.length > 0) {
+            const contact = contacts[0];
+            return {
+                name: contact.name || 'Character',
+                avatar: contact.avatar || getContactAvatar(contact.name)
+            };
+        }
+        // 연락처 없으면 SillyTavern 컨텍스트에서
+        const ctx = window.SillyTavern?.getContext?.();
+        const charName = ctx?.name2 || 'Character';
+        return {
+            name: charName,
+            avatar: getContactAvatar(charName)
+        };
+    }
+
     function getContactAvatar(name) {
         const contact = getContactByName(name);
         if (contact?.avatar) return contact.avatar;
