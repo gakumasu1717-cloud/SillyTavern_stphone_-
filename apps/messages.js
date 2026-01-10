@@ -2816,8 +2816,14 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
             try {
                 const Store = window.STPhone?.Apps?.Store;
                 if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
-                    instagramPrompt = `
-### 📸 Instagram Posting
+                    // Settings에서 프롬프트 가져오기
+                    const Settings = window.STPhone?.Apps?.Settings;
+                    const savedPrompt = Settings?.getSettings?.()?.instagramPrompt;
+                    if (savedPrompt) {
+                        instagramPrompt = savedPrompt;
+                    } else {
+                        // 기본값 사용
+                        instagramPrompt = `### 📸 Instagram Posting
 To post on Instagram, append this tag at the END of your message:
 [IG_POST]Your caption here in Korean[/IG_POST]
 
@@ -2828,6 +2834,7 @@ Rules:
 - Caption should be casual and short (1-2 sentences, Korean)
 - Do NOT include hashtags
 - Do NOT post every message - only when naturally appropriate`;
+                    }
                 }
             } catch (igErr) {
                 console.warn('[Messages] Instagram 프롬프트 로드 실패(무시됨):', igErr);

@@ -145,6 +145,19 @@ Input: "{{description}}"
 
 ### Response (Tags Only):`,
 
+        // [인스타그램 포스팅 프롬프트 - 채팅 주입용]
+        instagramPrompt: `### 📸 Instagram Posting
+To post on Instagram, append this tag at the END of your message:
+[IG_POST]Your caption here in Korean[/IG_POST]
+
+Example: "오늘 날씨 좋다~ [IG_POST]오늘 카페에서 작업 중! ☕️[/IG_POST]"
+
+Rules:
+- Only post when it makes sense (sharing moments, achievements, etc.)
+- Caption should be casual and short (1-2 sentences, Korean)
+- Do NOT include hashtags
+- Do NOT post every message - only when naturally appropriate`,
+
         // [프롬프트 순서 (조립용)]
         promptOrder: ['character', 'user', 'context', 'system', 'instruction'],
 
@@ -930,6 +943,16 @@ function saveToStorage() {
                             </div>
                         </div>
 
+                        <!-- 인스타그램 채팅 주입 프롬프트 -->
+                        <div class="st-section">
+                            <div class="st-row-block">
+                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>채팅 주입 프롬프트</span>
+                                <span class="st-desc">SMS/채팅 중 인스타그램 포스팅 유도 프롬프트 (Store 설치 시 자동 주입)</span>
+                                <textarea class="st-textarea mono" id="st-prompt-instagram" rows="8"></textarea>
+                                <button class="st-btn-small" id="st-reset-instagram-prompt">기본값</button>
+                            </div>
+                        </div>
+
                         <!-- 인스타그램 통합 프롬프트 (상황판단+캡션+이미지프롬프트) -->
                         <div class="st-section">
                             <div class="st-row-block">
@@ -1193,6 +1216,7 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
         if (currentSettings.instagramPostEnabled === false) {
             $('#st-insta-options').hide();
         }
+        $('#st-prompt-instagram').val(currentSettings.instagramPrompt || defaultSettings.instagramPrompt);
         $('#st-prompt-insta-all-in-one').val(currentSettings.instaAllInOnePrompt || defaultSettings.instaAllInOnePrompt);
         $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt || defaultSettings.instaCommentPrompt);
     }
@@ -1619,6 +1643,16 @@ $('#st-reset-user-translate-prompt').on('click', () => {
             saveToStorage();
         });
 
+        // 인스타그램 채팅 주입 프롬프트
+        $('#st-prompt-instagram').on('input', function() { currentSettings.instagramPrompt = $(this).val(); saveToStorage(); });
+        $('#st-reset-instagram-prompt').on('click', () => {
+            if(confirm('인스타그램 채팅 주입 프롬프트를 기본값으로 되돌릴까요?')) {
+                currentSettings.instagramPrompt = defaultSettings.instagramPrompt;
+                $('#st-prompt-instagram').val(currentSettings.instagramPrompt);
+                saveToStorage();
+            }
+        });
+
         // 인스타그램 통합 프롬프트 (포스팅 여부 + 이미지 프롬프트 + 캡션)
         $('#st-prompt-insta-all-in-one').on('input', function() { currentSettings.instaAllInOnePrompt = $(this).val(); saveToStorage(); });
         $('#st-reset-insta-all-in-one').on('click', () => {
@@ -1663,7 +1697,8 @@ $('#st-reset-user-translate-prompt').on('click', () => {
             photoMessagePrompt: currentSettings.photoMessagePrompt,
             translatePrompt: currentSettings.translatePrompt,
             userTranslatePrompt: currentSettings.userTranslatePrompt,
-            prefill: currentSettings.prefill
+            prefill: currentSettings.prefill,
+            instagramPrompt: currentSettings.instagramPrompt
         };
 
         // JSON 파일로 변환
@@ -1759,6 +1794,11 @@ $('#st-reset-user-translate-prompt').on('click', () => {
                 if (imported.prefill) {
                     currentSettings.prefill = imported.prefill;
                     $('#st-set-prefill').val(imported.prefill);
+                    importedCount++;
+                }
+                if (imported.instagramPrompt) {
+                    currentSettings.instagramPrompt = imported.instagramPrompt;
+                    $('#st-prompt-instagram').val(imported.instagramPrompt);
                     importedCount++;
                 }
 
