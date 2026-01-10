@@ -1304,7 +1304,7 @@ If the situation is not suitable for posting, set shouldPost to false.`;
     // ========== 댓글 시스템 ==========
     let isGeneratingComment = false;
     
-    // [NEW] 모든 미응답 게시물/댓글에 캐릭터 응답 (최대 1개만)
+    // [개선] 유저 메시지 후 모든 미응답 게시물에 순차적으로 댓글 달기
     async function checkAllPendingComments(charName) {
         if (isGeneratingComment) {
             console.log('[Instagram] 이미 댓글 생성 중 - 스킵');
@@ -1317,13 +1317,11 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             loadPosts();
             const user = getUserInfo();
             
-            // 1. 유저 게시물 중 캐릭터 댓글이 없는 것 찾기 (최신 1개만)
-            let targetPost = null;
-            let targetType = null;
-            let replyToText = null;
+            // 1. 모든 미응답 게시물 수집
+            const pendingPosts = [];
             
             for (const post of posts) {
-                // 캐릭터 본인 게시물 스킵
+                // 캐릭터 본인 게시물
                 if (post.author.toLowerCase() === charName.toLowerCase()) {
                     // 유저 댓글이 있고, 그 이후 캐릭터 답글이 없으면 타겟
                     const userComments = post.comments.filter(c => c.author === user.name);
@@ -1334,11 +1332,11 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                             c.id > lastUserComment.id
                         );
                         if (!hasCharReplyAfter) {
-                            targetPost = post;
-                            targetType = 'reply';
-                            replyToText = lastUserComment.text;
-                            console.log('[Instagram] 답글 필요:', post.caption?.substring(0, 30));
-                            break;
+                            pendingPosts.push({
+                                post,
+                                type: 'reply',
+                                replyToText: lastUserComment.text
+                            });
                         }
                     }
                     continue;
@@ -1353,39 +1351,112 @@ If the situation is not suitable for posting, set shouldPost to false.`;
                 );
                 
                 if (!hasCharComment) {
-                    targetPost = post;
-                    targetType = 'comment';
-                    console.log('[Instagram] 댓글 필요:', post.caption?.substring(0, 30));
-                    break;
+                    pendingPosts.push({
+                        post,
+                        type: 'comment',
+                        replyToText: null
+                    });
                 }
             }
             
-            // 타겟 없으면 종료
-            if (!targetPost) {
+            console.log('[Instagram] 미응답 게시물:', pendingPosts.length);
+            
+            if (pendingPosts.length === 0) {
                 console.log('[Instagram] 미응답 게시물 없음');
                 return;
             }
             
-            // 댓글 생성
-            const comment = await generateCommentForPost(targetPost, charName, targetType, replyToText);
-            
-            if (comment && comment.text && comment.text.trim().length >= 2) {
-                targetPost.comments.push(comment);
-                savePosts();
-                console.log('[Instagram] 댓글 저장 완료:', comment.text.substring(0, 30));
-                
-                if (targetType === 'reply') {
-                    addHiddenLog(charName, `[Instagram 답글] ${charName}가 ${user.name}의 댓글에 답글을 남겼습니다: "${comment.text}"`);
+            // 2. 모든 게시물 정보를 하나의 프롬프트로 묶어서 AI에게 요청
+            let commentsAdded = 0;
+            const commentTasks = pendingPosts.map((item, idx) => {
+                if (item.type === 'reply') {
+                    return `${idx + 1}. [답글] 게시물: "${item.post.caption?.substring(0, 50) || ''}" / 유저 댓글: "${item.replyToText?.substring(0, 50) || ''}"`;
                 } else {
-                    addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${targetPost.author}의 게시물에 댓글을 남겼습니다: "${comment.text}"`);
+                    return `${idx + 1}. [댓글] 게시물: "${item.post.caption?.substring(0, 100) || ''}"`;
+                }
+            }).join('\n');
+            
+            const charInfo = getCharacterInfo();
+            const chatHistory = getChatHistory(300);
+            
+            const batchPrompt = `[System] You are ${charName}.
+Personality: ${charInfo.personality || '자연스럽고 친근함'}
+
+### Recent conversation context:
+${chatHistory}
+
+### Task:
+아래 ${pendingPosts.length}개의 Instagram 게시물에 각각 댓글/답글을 달아주세요.
+평소 말투를 유지하고, 1-2문장으로 짧게 작성하세요.
+
+${commentTasks}
+
+### 출력 형식 (반드시 이 형식을 지켜주세요):
+1: 댓글 내용
+2: 댓글 내용
+...`;
+
+            const response = await generateWithAI(batchPrompt, 500);
+            console.log('[Instagram] AI 배치 응답:', response);
+            
+            if (!response || !response.trim()) {
+                console.log('[Instagram] AI 응답 없음');
+                return;
+            }
+            
+            // 3. 응답 파싱하여 각 게시물에 댓글 추가
+            const lines = response.split('\n').filter(l => l.trim());
+            
+            for (const line of lines) {
+                // "1: 댓글 내용" 또는 "1. 댓글 내용" 형식 파싱
+                const match = line.match(/^(\d+)[:\.\)]\s*(.+)/);
+                if (!match) continue;
+                
+                const idx = parseInt(match[1]) - 1;
+                const commentText = match[2].trim();
+                
+                if (idx < 0 || idx >= pendingPosts.length) continue;
+                if (!commentText || commentText.length < 2 || commentText.includes('[SKIP]')) continue;
+                
+                const item = pendingPosts[idx];
+                const cleanComment = stripDateTag(commentText);
+                
+                if (!cleanComment || cleanComment.length < 2) continue;
+                
+                item.post.comments.push({
+                    id: Date.now() + idx,
+                    author: charName,
+                    authorAvatar: getContactAvatar(charName),
+                    text: cleanComment,
+                    timestamp: getRpTimestamp()
+                });
+                
+                commentsAdded++;
+                
+                if (item.type === 'reply') {
+                    addHiddenLog(charName, `[Instagram 답글] ${charName}가 ${user.name}의 댓글에 답글을 남겼습니다: "${cleanComment}"`);
+                } else {
+                    addHiddenLog(charName, `[Instagram 댓글] ${charName}가 ${item.post.author}의 게시물에 댓글을 남겼습니다: "${cleanComment}"`);
                 }
                 
+                console.log('[Instagram] 댓글 추가:', cleanComment.substring(0, 30));
+            }
+            
+            // 4. 한 번에 저장
+            if (commentsAdded > 0) {
+                savePosts();
+                console.log('[Instagram] 총', commentsAdded, '개 댓글 저장 완료');
+                
+                // UI 새로고침
                 if ($('.st-insta-app').length) {
-                    setTimeout(() => open(), 100);
+                    setTimeout(() => {
+                        loadPosts(); // 명시적으로 다시 로드
+                        open();
+                    }, 100);
                 }
                 
                 if (typeof toastr !== 'undefined') {
-                    toastr.info(`${charName}님이 댓글을 달았습니다`);
+                    toastr.info(`${charName}님이 ${commentsAdded}개의 댓글을 달았습니다`);
                 }
             }
             
@@ -1394,68 +1465,6 @@ If the situation is not suitable for posting, set shouldPost to false.`;
         } finally {
             isGeneratingComment = false;
         }
-    }
-    
-    // 개별 게시물에 대한 댓글 생성
-    async function generateCommentForPost(post, charName, type = 'comment', replyToText = '') {
-        const contact = getContactByName(charName);
-        const relationship = contact?.relationship || 'friend';
-        const charInfo = getCharacterInfo();
-        const chatHistory = getChatHistory(500);
-        
-        let task = '';
-        if (type === 'reply') {
-            task = `${post.author}(${charName})의 게시물에 달린 댓글에 답글을 달아주세요.
-게시물 내용: "${post.caption}"
-유저의 댓글: "${replyToText}"
-
-답글을 작성하세요.`;
-        } else {
-            task = `${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
-게시물 내용: "${post.caption}"`;
-        }
-        
-        const commentPrompt = `[System] You are ${charName}.
-Personality: ${charInfo.personality || '자연스럽고 친근함'}
-Relationship with ${post.author}: ${relationship}
-
-### Recent conversation context:
-${chatHistory}
-
-### Task:
-${task}
-
-위의 대화 맥락과 ${charName}의 성격을 반영해서 자연스러운 댓글을 작성하세요.
-평소 대화하는 말투를 유지하세요. 반말/존대말은 대화 맥락을 따르세요.
-1-2문장으로 짧게. 댓글 텍스트만 출력하세요.
-만약 댓글을 달고 싶지 않다면 [SKIP]만 출력하세요.`;
-
-        const comment = await generateWithAI(commentPrompt, 100);
-        console.log('[Instagram] AI 댓글 응답:', comment);
-        
-        // 빈 응답 체크 강화
-        if (!comment || !comment.trim() || comment.trim().length < 2 || comment.includes('[SKIP]')) {
-            console.log('[Instagram] 댓글 스킵 (빈 응답 또는 [SKIP])');
-            return null;
-        }
-        
-        const cleanComment = stripDateTag(comment.trim());
-        
-        // 정리 후에도 빈이면 스킵
-        if (!cleanComment || cleanComment.length < 2) {
-            console.log('[Instagram] 댓글 스킵 (정리 후 빈)');
-            return null;
-        }
-        
-        console.log('[Instagram] 댓글 추가:', cleanComment);
-        
-        return {
-            id: Date.now() + Math.random(),
-            author: charName,
-            authorAvatar: getContactAvatar(charName),
-            text: cleanComment,
-            timestamp: getRpTimestamp()
-        };
     }
     
     // 기존 함수 유지 (하위 호환)
