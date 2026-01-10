@@ -2977,16 +2977,30 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
             }
 
             // [NEW] Instagram 포스팅 태그 처리
+            console.log('[Messages] generateResponseSingle - replyText 처리 중:', replyText?.substring(0, 80));
+            console.log('[Messages] [IG_POST] 포함 여부:', replyText?.includes('[IG_POST]'));
+            
             const igPostMatch = replyText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+            console.log('[Messages] igPostMatch 결과:', igPostMatch ? '매치됨' : 'null');
+            
             if (igPostMatch) {
                 const igCaption = igPostMatch[1].trim();
+                console.log('[Messages] 캡션 추출:', igCaption.substring(0, 50));
                 replyText = replyText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
                 
                 // Instagram 앱이 설치되어 있으면 포스트 생성
                 const Store = window.STPhone?.Apps?.Store;
+                console.log('[Messages] Store 존재:', !!Store);
+                console.log('[Messages] isInstalled 함수:', typeof Store?.isInstalled);
+                console.log('[Messages] instagram 설치됨:', Store?.isInstalled?.('instagram'));
+                
                 if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
                     const Instagram = window.STPhone?.Apps?.Instagram;
+                    console.log('[Messages] Instagram 앱:', !!Instagram);
+                    console.log('[Messages] createPostFromChat:', typeof Instagram?.createPostFromChat);
+                    
                     if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                        console.log('[Messages] >>> createPostFromChat 호출! <<<');
                         Instagram.createPostFromChat(contact.name, igCaption);
                         console.log('[Messages] Instagram 포스트 생성 요청:', igCaption.substring(0, 50));
                     }
