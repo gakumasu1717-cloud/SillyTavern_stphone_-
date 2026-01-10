@@ -268,6 +268,35 @@ const EXTENSION_NAME = 'ST Phone System';
 
         const rawText = textDiv.innerText;
         
+        // [NEW] Instagram 레거시 패턴 직접 처리 (📩 패턴과 별개)
+        // [Instagram 답글] 캐릭터가 유저의 댓글에 답글을 남겼습니다: "내용"
+        const legacyReplyMatch = rawText.match(/\[Instagram 답글\]\s*(.+?)(?:가|이)\s*.+?(?:의|에게)\s*(?:댓글에\s*)?답글을?\s*남겼습니다[:\s]*[""]([^""]+)[""]/i);
+        if (legacyReplyMatch) {
+            const charName = legacyReplyMatch[1].trim();
+            const replyContent = legacyReplyMatch[2].trim();
+            const Store = window.STPhone?.Apps?.Store;
+            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                    Instagram.addReplyFromChat(charName, replyContent);
+                }
+            }
+        }
+        
+        // [Instagram 포스팅] 캐릭터가 Instagram에 게시물을 올렸습니다: "내용"
+        const legacyPostMatch = rawText.match(/\[Instagram 포스팅\]\s*(.+?)(?:가|이)\s*Instagram에\s*게시물을?\s*올렸습니다[:\s]*[""]([^""]+)[""]/i);
+        if (legacyPostMatch) {
+            const charName = legacyPostMatch[1].trim();
+            const caption = legacyPostMatch[2].trim();
+            const Store = window.STPhone?.Apps?.Store;
+            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                    Instagram.createPostFromChat(charName, caption);
+                }
+            }
+        }
+        
         // [📩 발신자 -> 수신자]: 메시지 패턴 먼저 처리 (히든로그 체크 전에!)
         // HTML 엔티티(&gt;)도 처리
         // 여러 줄의 📩 메시지를 모두 처리
