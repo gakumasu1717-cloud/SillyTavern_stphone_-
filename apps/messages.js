@@ -1255,6 +1255,32 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     }
 
     async function receiveMessageSequential(contactId, text, contactName, myName, replyTo = null) {
+        // [NEW] 줄 단위 처리 전에 전체 텍스트에서 Instagram 태그 먼저 처리
+        if (window.STPhone.Apps?.Instagram) {
+            const Instagram = window.STPhone.Apps.Instagram;
+            
+            // [IG_POST] 태그 처리 (전체 텍스트에서)
+            const igPostMatch = text.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+            if (igPostMatch) {
+                const caption = igPostMatch[1].trim();
+                if (typeof Instagram.createPostFromChat === 'function') {
+                    console.log('[Messages] Instagram 포스트 생성 (전체 텍스트):', caption.substring(0, 50));
+                    Instagram.createPostFromChat(contactName, caption);
+                }
+                text = text.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+            }
+            
+            // [IG_REPLY] 태그 처리 (전체 텍스트에서)
+            const igReplyMatch = text.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+            if (igReplyMatch) {
+                const replyContent = igReplyMatch[1].trim();
+                if (typeof Instagram.addReplyFromChat === 'function') {
+                    Instagram.addReplyFromChat(contactName, replyContent);
+                }
+                text = text.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+            }
+        }
+        
         const lines = text.split('\n').filter(l => l.trim());
         if (lines.length === 0) return;
 
@@ -1272,25 +1298,17 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             let lineText = lines[i].trim();
             if (!lineText) continue;
 
-            // Instagram 포스팅/답글/댓글 패턴 감지 및 제거
+            // Instagram 포스팅/답글/댓글 패턴 감지 및 제거 (줄 단위 - 하위 호환)
             if (window.STPhone.Apps?.Instagram) {
                 const Instagram = window.STPhone.Apps.Instagram;
                 
-                // [NEW] 새 고정 형식: [IG_POST]캡션[/IG_POST]
+                // [IG_POST] 태그 제거 (이미 위에서 처리했으므로 여기선 제거만)
                 if (lineText.includes('[IG_POST]')) {
-                    const postMatch = lineText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
-                    if (postMatch && typeof Instagram.createPostFromChat === 'function') {
-                        Instagram.createPostFromChat(contactName, postMatch[1].trim());
-                    }
                     lineText = lineText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
                 }
                 
-                // [NEW] 새 고정 형식: [IG_REPLY]답글[/IG_REPLY]
+                // [IG_REPLY] 태그 제거 (이미 위에서 처리했으므로 여기선 제거만)
                 if (lineText.includes('[IG_REPLY]')) {
-                    const replyMatch = lineText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
-                    if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
-                        Instagram.addReplyFromChat(contactName, replyMatch[1].trim());
-                    }
                     lineText = lineText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
                 }
                 

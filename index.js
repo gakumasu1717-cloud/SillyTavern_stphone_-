@@ -145,7 +145,7 @@ const EXTENSION_NAME = 'ST Phone System';
     function applyHideLogicToAll() {
         const messages = document.querySelectorAll('.mes');
         messages.forEach(node => {
-            hideSystemLogs(node); // 이미 있는 메시지 숨기기
+            hideSystemLogs(node, false); // 이미 있는 메시지 숨기기 (Instagram 포스트 생성 안 함)
         });
     }
 
@@ -168,7 +168,7 @@ const EXTENSION_NAME = 'ST Phone System';
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1 && node.classList.contains('mes')) {
                         // 순서 중요: 먼저 숨길 건지 판단하고 -> 그 다음 폰과 동기화
-                        hideSystemLogs(node);
+                        hideSystemLogs(node, true); // 새 메시지 = Instagram 포스트 생성 O
                         processSync(node);
                     }
                 });
@@ -180,7 +180,8 @@ const EXTENSION_NAME = 'ST Phone System';
     }
 
     // [신규 기능] 폰 로그인지 검사하고 숨겨주는 함수
-    function hideSystemLogs(node) {
+    // isNewMessage: true면 새 메시지 (Instagram 포스트 생성), false면 기존 메시지 (숨기기만)
+    function hideSystemLogs(node, isNewMessage = false) {
         // 이미 처리된 건 스킵
         if (node.classList.contains('st-phone-hidden-log')) return;
         if (node.dataset.igProcessed) return; // Instagram 처리 중복 방지
@@ -197,24 +198,24 @@ const EXTENSION_NAME = 'ST Phone System';
         if (igPostMatch) {
             node.dataset.igProcessed = 'true'; // 중복 처리 방지
             const caption = igPostMatch[1].trim();
-            console.log('[STPhone] [IG_POST] 태그 감지됨:', caption.substring(0, 50));
             
-            // Instagram 앱이 설치되어 있으면 포스트 생성
-            const Store = window.STPhone?.Apps?.Store;
-            const isInstalled = Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram');
-            console.log('[STPhone] Instagram 설치 여부:', isInstalled);
-            
-            if (isInstalled) {
-                const Instagram = window.STPhone?.Apps?.Instagram;
-                console.log('[STPhone] Instagram 앱 존재:', !!Instagram);
-                console.log('[STPhone] createPostFromChat 존재:', typeof Instagram?.createPostFromChat);
+            // 새 메시지일 때만 Instagram 포스트 생성
+            if (isNewMessage) {
+                console.log('[STPhone] [IG_POST] 새 메시지 감지:', caption.substring(0, 50));
                 
-                if (Instagram && typeof Instagram.createPostFromChat === 'function') {
-                    // 발신자 이름 추출 (캐릭터 이름)
-                    const nameDiv = node.querySelector('.ch_name, .name_text');
-                    const characterName = nameDiv?.innerText?.trim() || 'Unknown';
-                    console.log('[STPhone] Instagram 포스트 생성 호출:', characterName, caption.substring(0, 30));
-                    Instagram.createPostFromChat(characterName, caption);
+                // Instagram 앱이 설치되어 있으면 포스트 생성
+                const Store = window.STPhone?.Apps?.Store;
+                const isInstalled = Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram');
+                
+                if (isInstalled) {
+                    const Instagram = window.STPhone?.Apps?.Instagram;
+                    if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                        // 발신자 이름 추출 (캐릭터 이름)
+                        const nameDiv = node.querySelector('.ch_name, .name_text');
+                        const characterName = nameDiv?.innerText?.trim() || 'Unknown';
+                        console.log('[STPhone] Instagram 포스트 생성:', characterName);
+                        Instagram.createPostFromChat(characterName, caption);
+                    }
                 }
             }
         }
