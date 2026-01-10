@@ -3139,6 +3139,32 @@ Personality: ${settings.userPersonality || '(not specified)'}
                 if (window.STPhone.Apps?.Instagram) {
                     const Instagram = window.STPhone.Apps.Instagram;
                     
+                    // [NEW] 새 고정 형식: [IG_POST]캡션[/IG_POST]
+                    const igPostMatch = cleanMessage.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+                    if (igPostMatch) {
+                        const Store = window.STPhone?.Apps?.Store;
+                        if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                            if (typeof Instagram.createPostFromChat === 'function') {
+                                Instagram.createPostFromChat(member.name, igPostMatch[1].trim());
+                                console.log('[GroupReply] Instagram 포스트 생성 요청:', igPostMatch[1].substring(0, 50));
+                            }
+                        }
+                        cleanMessage = cleanMessage.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                    }
+                    
+                    // [NEW] 새 고정 형식: [IG_REPLY]답글[/IG_REPLY]
+                    const igReplyMatch = cleanMessage.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+                    if (igReplyMatch) {
+                        const Store = window.STPhone?.Apps?.Store;
+                        if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                            if (typeof Instagram.addReplyFromChat === 'function') {
+                                Instagram.addReplyFromChat(member.name, igReplyMatch[1].trim());
+                                console.log('[GroupReply] Instagram 답글 생성 요청:', igReplyMatch[1].substring(0, 50));
+                            }
+                        }
+                        cleanMessage = cleanMessage.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                    }
+                    
                     // 새 패턴: (Instagram: "캡션")
                     if (cleanMessage.includes('(Instagram:')) {
                         const postMatch = cleanMessage.match(/\(Instagram:\s*"([^"]+)"\)/i);
@@ -4592,6 +4618,39 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
             if (replyText.includes('[IGNORE]') || replyText.includes('[NO_TEXT]') || replyText.startsWith('[📩')) {
                 console.log('📱 [Proactive] AI가 메시지 스킵');
                 return;
+            }
+
+            // [INSTAGRAM_MOD] Instagram 포스팅 태그 처리
+            const igPostMatch = replyText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+            if (igPostMatch) {
+                const igCaption = igPostMatch[1].trim();
+                replyText = replyText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                
+                // Instagram 앱이 설치되어 있으면 포스트 생성
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    const Instagram = window.STPhone?.Apps?.Instagram;
+                    if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                        Instagram.createPostFromChat(contact.name, igCaption);
+                        console.log('[Proactive] Instagram 포스트 생성 요청:', igCaption.substring(0, 50));
+                    }
+                }
+            }
+            
+            // [INSTAGRAM_MOD] Instagram 답글 태그 처리
+            const igReplyMatch = replyText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+            if (igReplyMatch) {
+                const igReplyText = igReplyMatch[1].trim();
+                replyText = replyText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    const Instagram = window.STPhone?.Apps?.Instagram;
+                    if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                        Instagram.addReplyFromChat(contact.name, igReplyText);
+                        console.log('[Proactive] Instagram 답글 생성 요청:', igReplyText.substring(0, 50));
+                    }
+                }
             }
 
             if (replyText) {
