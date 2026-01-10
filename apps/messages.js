@@ -1276,7 +1276,25 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             if (window.STPhone.Apps?.Instagram) {
                 const Instagram = window.STPhone.Apps.Instagram;
                 
-                // 새 패턴: (Instagram: "캡션")
+                // [NEW] 새 고정 형식: [IG_POST]캡션[/IG_POST]
+                if (lineText.includes('[IG_POST]')) {
+                    const postMatch = lineText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+                    if (postMatch && typeof Instagram.createPostFromChat === 'function') {
+                        Instagram.createPostFromChat(contactName, postMatch[1].trim());
+                    }
+                    lineText = lineText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                }
+                
+                // [NEW] 새 고정 형식: [IG_REPLY]답글[/IG_REPLY]
+                if (lineText.includes('[IG_REPLY]')) {
+                    const replyMatch = lineText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+                    if (replyMatch && typeof Instagram.addReplyFromChat === 'function') {
+                        Instagram.addReplyFromChat(contactName, replyMatch[1].trim());
+                    }
+                    lineText = lineText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                }
+                
+                // 괄호 형식: (Instagram: "캡션")
                 if (lineText.includes('(Instagram:')) {
                     const postMatch = lineText.match(/\(Instagram:\s*"([^"]+)"\)/i);
                     if (postMatch && typeof Instagram.createPostFromChat === 'function') {

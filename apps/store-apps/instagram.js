@@ -1588,6 +1588,8 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
             .on('keydown', '.st-insta-comment-input input', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
+                    e.stopPropagation(); // 이벤트 버블링 방지
+                    e.stopImmediatePropagation(); // 다른 핸들러 실행 방지
                     const postId = parseInt($(this).data('post-id'));
                     const text = $(this).val().trim();
                     if (text) {
@@ -1595,6 +1597,7 @@ ${post.author}님의 Instagram 게시물에 댓글을 달아주세요.
                         $(this).val('');
                         $(`.st-insta-comment-btn[data-post-id="${postId}"]`).removeClass('active');
                     }
+                    return false; // jQuery에서 추가 이벤트 중단
                 }
             });
 
@@ -1988,6 +1991,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // 초기 로드 완료 플래그 - 이전 메시지에 토스트 안 띄우기 위함
     let initialLoadComplete = false;
+    // 초기화 시점의 마지막 메시지 ID 저장
+    let lastMessageIdOnLoad = -1;
     
     // Phone.js 방식: 채팅창 DOM 감시
     function startInstagramObserver() {
@@ -2008,11 +2013,18 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         console.log('[Instagram] Observer 등록 성공');
 
-        // 기존 메시지들 먼저 태그만 제거 (토스트 없이)
+        // 기존 메시지들 먼저 태그만 제거 (토스트 없이, 포스트 생성 없이)
         const existingMsgs = chatRoot.querySelectorAll('.mes');
         existingMsgs.forEach(msg => {
             cleanInstagramTags(msg);
+            // 마지막 메시지 ID 기록
+            const mesId = parseInt(msg.getAttribute('mesid')) || 0;
+            if (mesId > lastMessageIdOnLoad) {
+                lastMessageIdOnLoad = mesId;
+            }
         });
+        
+        console.log('[Instagram] 초기 로드 완료, 마지막 메시지 ID:', lastMessageIdOnLoad);
         
         // 초기 로드 완료 - 이후 새 메시지만 토스트
         setTimeout(() => { initialLoadComplete = true; }, 1000);
@@ -2021,7 +2033,11 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1 && node.classList.contains('mes')) {
-                        if (initialLoadComplete) {
+                        // 메시지 ID로 새 메시지인지 확인
+                        const mesId = parseInt(node.getAttribute('mesid')) || 0;
+                        const isNewMessage = mesId > lastMessageIdOnLoad;
+                        
+                        if (initialLoadComplete && isNewMessage) {
                             checkMessageForInstagram(node);
                         } else {
                             cleanInstagramTags(node);
