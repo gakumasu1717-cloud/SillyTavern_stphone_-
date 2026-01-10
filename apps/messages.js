@@ -1255,17 +1255,26 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     }
 
     async function receiveMessageSequential(contactId, text, contactName, myName, replyTo = null) {
+        console.log('[Messages] receiveMessageSequential 호출됨:', contactName, text?.substring(0, 80));
+        
         // [NEW] 줄 단위 처리 전에 전체 텍스트에서 Instagram 태그 먼저 처리
+        console.log('[Messages] Instagram 앱 존재:', !!window.STPhone.Apps?.Instagram);
+        
         if (window.STPhone.Apps?.Instagram) {
             const Instagram = window.STPhone.Apps.Instagram;
+            console.log('[Messages] createPostFromChat 함수 존재:', typeof Instagram.createPostFromChat);
             
             // [IG_POST] 태그 처리 (전체 텍스트에서)
             const igPostMatch = text.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+            console.log('[Messages] [IG_POST] 매치 결과:', igPostMatch ? igPostMatch[1]?.substring(0, 30) : 'null');
+            
             if (igPostMatch) {
                 const caption = igPostMatch[1].trim();
                 if (typeof Instagram.createPostFromChat === 'function') {
-                    console.log('[Messages] Instagram 포스트 생성 (전체 텍스트):', caption.substring(0, 50));
+                    console.log('[Messages] Instagram 포스트 생성 호출!:', caption.substring(0, 50));
                     Instagram.createPostFromChat(contactName, caption);
+                } else {
+                    console.log('[Messages] createPostFromChat이 함수가 아님!');
                 }
                 text = text.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
             }
