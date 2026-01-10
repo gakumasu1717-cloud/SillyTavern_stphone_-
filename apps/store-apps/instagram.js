@@ -565,7 +565,15 @@ Output ONLY the comment text, no quotes.`
         if (!text) return '';
         const textarea = document.createElement('textarea');
         textarea.innerHTML = text;
-        return textarea.value;
+        let decoded = textarea.value;
+        // 추가 HTML 엔티티 처리
+        decoded = decoded
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
+        return decoded;
     }
 
     // ========== 유틸리티 함수 ==========
@@ -573,10 +581,10 @@ Output ONLY the comment text, no quotes.`
     // 앱 설치 여부 확인 헬퍼
     function isInstagramInstalled() {
         const Store = window.STPhone?.Apps?.Store;
-        // Store가 없거나 isInstalled 함수가 없으면 설치된 것으로 간주 (하위 호환)
+        // Store가 없거나 isInstalled 함수가 없으면 설치 안 된 것으로 간주 (안전 처리)
         if (!Store || typeof Store.isInstalled !== 'function') {
-            console.log('[Instagram] Store 또는 isInstalled 함수 없음 - 설치된 것으로 간주');
-            return true;
+            console.log('[Instagram] Store 또는 isInstalled 함수 없음 - 설치 안 된 것으로 간주');
+            return false;
         }
         return Store.isInstalled('instagram');
     }
@@ -1963,10 +1971,28 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
 
             if (eventSource && eventTypes?.MESSAGE_RECEIVED) {
                 listenerRegistered = true;
+                
+                // 초기 마지막 메시지 ID 저장
+                const ctx = window.SillyTavern.getContext();
+                let lastProcessedMsgId = ctx?.chat?.length || 0;
+                
                 eventSource.on(eventTypes.MESSAGE_RECEIVED, (messageId) => {
                     setTimeout(() => {
                         const c = window.SillyTavern.getContext();
                         if (!c?.chat || c.chat.length === 0) return;
+                        
+                        // 초기 로드 시 기존 메시지는 무시
+                        const currentMsgCount = c.chat.length;
+                        if (currentMsgCount <= lastProcessedMsgId) return;
+                        
+                        lastProcessedMsgId = currentMsgCount;
+                        
+                        // [추가] 유저 메시지가 하나도 없으면 스킵 (그리팅/초기 메시지)
+                        const userMsgCount = c.chat.reduce((count, m) => count + (m?.is_user ? 1 : 0), 0);
+                        if (userMsgCount === 0) {
+                            console.log('[Instagram] 그리팅/초기 메시지 스킵 - 유저 메시지 없음');
+                            return;
+                        }
                         
                         const lastMsg = c.chat[c.chat.length - 1];
                         if (lastMsg && !lastMsg.is_user) {
@@ -1983,6 +2009,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                         console.log('[Instagram] 채팅 변경 감지 - 플래그 리셋');
                         initialLoadComplete = false;
                         lastMessageIdOnLoad = -1;
+                        // 새 채팅의 메시지 수 저장
+                        const c = window.SillyTavern.getContext();
+                        lastProcessedMsgId = c?.chat?.length || 0;
                         setTimeout(() => { initialLoadComplete = true; }, 2000);
                     });
                 }
@@ -2163,30 +2192,33 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // 인스타그램 앱 설치 여부 체크
         if (!isInstagramInstalled()) return;
         
+        // HTML 엔티티 디코딩
+        const decodedMessage = decodeHtmlEntities(message);
+        
         // 1. 새 고정 형식
-        const fixedPostMatch = message.match(INSTAGRAM_PATTERNS.fixedPost);
+        const fixedPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.fixedPost);
         if (fixedPostMatch && fixedPostMatch[1]) {
             createPostFromChat(charName, fixedPostMatch[1].trim());
         }
         
-        const fixedReplyMatch = message.match(INSTAGRAM_PATTERNS.fixedReply);
+        const fixedReplyMatch = decodedMessage.match(INSTAGRAM_PATTERNS.fixedReply);
         if (fixedReplyMatch && fixedReplyMatch[1]) {
             addReplyFromChat(charName, fixedReplyMatch[1].trim());
         }
         
         // 2. 괄호 형식
-        const parenPostMatch = message.match(INSTAGRAM_PATTERNS.parenPost);
+        const parenPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.parenPost);
         if (parenPostMatch && parenPostMatch[1]) {
             createPostFromChat(charName, parenPostMatch[1].trim());
         }
         
         // 3. 레거시 패턴 (하위 호환)
-        const legacyPostMatch = message.match(INSTAGRAM_PATTERNS.legacyPost);
+        const legacyPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.legacyPost);
         if (legacyPostMatch && legacyPostMatch[1]) {
             createPostFromChat(charName, legacyPostMatch[1].trim());
         }
         
-        const legacyReplyMatch = message.match(INSTAGRAM_PATTERNS.legacyReply);
+        const legacyReplyMatch = decodedMessage.match(INSTAGRAM_PATTERNS.legacyReply);
         if (legacyReplyMatch && legacyReplyMatch[1]) {
             addReplyFromChat(charName, legacyReplyMatch[1].trim());
         }
@@ -2248,11 +2280,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             }
         }
         
-        // 대상 게시물 없으면 가장 최근 게시물에 댓글
-        if (!targetPost && posts.length > 0) {
-            targetPost = posts[0];
-        }
-        
+        // 대상 게시물 없으면 댓글 안 달음
         if (!targetPost) return;
         
         // 답글/댓글 추가
