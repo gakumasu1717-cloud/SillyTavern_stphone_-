@@ -1970,14 +1970,25 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                         
                         const lastMsg = c.chat[c.chat.length - 1];
                         if (lastMsg && !lastMsg.is_user) {
+                            // [중요] 여기서만 포스트 생성 (새 메시지 수신 시)
                             parseInstagramFromChat(lastMsg.name, lastMsg.mes);
                             checkProactivePost(lastMsg.name);
                         }
                     }, 500);
                 });
+                
+                // 채팅 변경 시 플래그 리셋
+                if (eventTypes.CHAT_CHANGED) {
+                    eventSource.on(eventTypes.CHAT_CHANGED, () => {
+                        console.log('[Instagram] 채팅 변경 감지 - 플래그 리셋');
+                        initialLoadComplete = false;
+                        lastMessageIdOnLoad = -1;
+                        setTimeout(() => { initialLoadComplete = true; }, 2000);
+                    });
+                }
             }
             
-            // Phone.js와 동일: MutationObserver로 DOM 직접 감시
+            // Phone.js와 동일: MutationObserver로 DOM 직접 감시 (태그 숨기기만)
             startInstagramObserver();
         }, 1000);
     }
@@ -2089,7 +2100,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         msgNode.dataset.instagramChecked = "true";
     }
 
-    // 메시지에서 Instagram 포스팅 태그 감지 (새 메시지용 - 토스트 O)
+    // 메시지에서 Instagram 포스팅 태그 감지 (새 메시지용)
+    // [중요] Observer에서는 태그 숨기기만! 포스트 생성은 MESSAGE_RECEIVED 이벤트에서만
     function checkMessageForInstagram(msgNode) {
         // 인스타그램 앱 설치 여부 체크
         if (!isInstagramInstalled()) {
@@ -2105,61 +2117,34 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
 
         // HTML 엔티티 디코딩
         let html = decodeHtmlEntities(textDiv.innerHTML);
-        const fallbackName = msgNode.getAttribute('ch_name') || "Unknown";
         let modified = false;
         
-        // 1. 새 고정 형식: [IG_POST]캡션[/IG_POST] (권장)
+        // 태그 제거만 (포스트 생성은 MESSAGE_RECEIVED에서 함)
         if (html.includes('[IG_POST]')) {
-            const postMatch = html.match(INSTAGRAM_PATTERNS.fixedPost);
-            if (postMatch && postMatch[1]) {
-                console.log('[Instagram] 고정 형식 포스트 감지:', postMatch[1].substring(0, 50));
-                createPostFromChat(fallbackName, postMatch[1].trim());
-            }
             html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
             modified = true;
         }
         
-        // 2. 새 고정 형식: [IG_REPLY]답글[/IG_REPLY]
         if (html.includes('[IG_REPLY]')) {
-            const replyMatch = html.match(INSTAGRAM_PATTERNS.fixedReply);
-            if (replyMatch && replyMatch[1]) {
-                addReplyFromChat(fallbackName, replyMatch[1].trim());
-            }
             html = html.replace(INSTAGRAM_PATTERNS.fixedReplyGlobal, '');
             modified = true;
         }
         
-        // 3. 괄호 형식: (Instagram: "캡션") - 하위 호환
         if (html.includes('(Instagram:')) {
-            const postMatch = html.match(INSTAGRAM_PATTERNS.parenPost);
-            if (postMatch && postMatch[1]) {
-                createPostFromChat(fallbackName, postMatch[1].trim());
-            }
             html = html.replace(INSTAGRAM_PATTERNS.parenPostGlobal, '');
             modified = true;
         }
         
-        // 4. 레거시 패턴: [Instagram 포스팅] - 하위 호환
         if (html.includes('[Instagram 포스팅]')) {
-            const postMatch = html.match(INSTAGRAM_PATTERNS.legacyPost);
-            if (postMatch && postMatch[1]) {
-                createPostFromChat(fallbackName, postMatch[1].trim());
-            }
             html = html.replace(INSTAGRAM_PATTERNS.legacyPostGlobal, '');
             modified = true;
         }
         
-        // 5. 레거시 패턴: [Instagram 답글]
         if (html.includes('[Instagram 답글]')) {
-            const replyMatch = html.match(INSTAGRAM_PATTERNS.legacyReply);
-            if (replyMatch && replyMatch[1]) {
-                addReplyFromChat(fallbackName, replyMatch[1].trim());
-            }
             html = html.replace(INSTAGRAM_PATTERNS.legacyReplyGlobal, '');
             modified = true;
         }
         
-        // 6. 레거시 패턴: [Instagram 댓글] - 제거만
         if (html.includes('[Instagram 댓글]')) {
             html = html.replace(INSTAGRAM_PATTERNS.legacyComment, '');
             modified = true;
