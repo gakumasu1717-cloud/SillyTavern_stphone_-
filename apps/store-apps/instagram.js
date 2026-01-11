@@ -1032,7 +1032,7 @@ Output ONLY the comment text, no quotes.`
         }
     }
 
-    async function generateDetailedPrompt(userInput, characterName, photoType = 'selfie') {
+    async function generateDetailedPrompt(userInput, characterName, photoType = 'selfie', isCharacterPost = false) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
         // 1. 사용자(User)와 상대방(Character) 정보 명확히 분리
@@ -1063,16 +1063,53 @@ Output ONLY the comment text, no quotes.`
         console.log('[Instagram] generateDetailedPrompt 호출:', {
             userName, userTags: userTags?.substring(0, 50),
             characterName, charTags: charTags?.substring(0, 50),
-            photoType, userInput: userInput?.substring(0, 50)
+            photoType, userInput: userInput?.substring(0, 50),
+            isCharacterPost
         });
 
         // 2. AI에게 제공할 "Visual Data Block" 구성
-        // 단순히 나열하지 않고, 명확한 변수명(Variable)처럼 제공
-        const visualData = `
+        // isCharacterPost가 true면 캐릭터 관점에서 해석
+        let visualData, subjectInstruction;
+        
+        if (isCharacterPost) {
+            // 캐릭터가 포스팅: "나/내/셀카"는 캐릭터를 가리킴
+            visualData = `
+### CANDIDATE SUBJECTS (Visual Tags)
+[SUBJECT A - Poster (${characterName})]: ${charTags}
+[SUBJECT B - Partner (${userName})]: ${userTags}
+`;
+            subjectInstruction = `
+### INSTRUCTION (Follow strictly)
+This caption is written from ${characterName}'s perspective. Analyze to determine the **Subject** of the photo:
+
+1. **IF Poster implies themselves** (e.g., "My selfie", "Me today", "Feeling cute", "I look...", "내 셀카", "나", "셀카", "오늘의 나", "내 사진"):
+   -> Use tags from **[SUBJECT A - Poster (${characterName})]**.
+2. **IF Poster implies the partner** (e.g., "You look great", "Your smile", "${userName}", "너", "네 모습"):
+   -> Use tags from **[SUBJECT B - Partner (${userName})]**.
+3. **IF Poster implies both** (e.g., "Us", "Together", "같이", "우리"):
+   -> Combine tags from BOTH subjects.
+4. **IF Scenery/Object** (e.g., "food", "view", "sky", "음식", "풍경"):
+   -> Describe the object/scene based on input, ignore character tags.`;
+        } else {
+            // 유저가 포스팅: "나/내/셀카"는 유저를 가리킴
+            visualData = `
 ### CANDIDATE SUBJECTS (Visual Tags)
 [SUBJECT A - User/Me (${userName})]: ${userTags}
 [SUBJECT B - Character/Partner (${characterName})]: ${charTags}
 `;
+            subjectInstruction = `
+### INSTRUCTION (Follow strictly)
+Analyze the User's Input Text to determine the **Subject** of the photo:
+
+1. **IF User implies themselves** (e.g., "My outfit", "Me today", "Feeling cute", "I look...", "내 옷", "나", "셀카", "오늘의 나"):
+   -> Use tags from **[SUBJECT A - User/Me]**.
+2. **IF User implies the partner** (e.g., "You look great", "Your smile", "Look at you", "너", "네 모습", "${characterName}"):
+   -> Use tags from **[SUBJECT B - Character/Partner]**.
+3. **IF User implies both** (e.g., "Us", "Together", "같이", "우리"):
+   -> Combine tags from BOTH subjects.
+4. **IF Scenery/Object** (e.g., "food", "view", "sky", "음식", "풍경"):
+   -> Describe the object/scene based on input, ignore character tags.`;
+        }
 
         // 3. 사진 모드 힌트 (강제성 제거, 참고용)
         let photoTypeHint = '';
@@ -1088,35 +1125,24 @@ Output ONLY the comment text, no quotes.`
 
         // 4. 핵심: AI 판단 로직이 담긴 프롬프트
         const aiInstruction = `[System] You are an intelligent prompt generator for a photo simulation.
-Your goal is to generate a Stable Diffusion prompt inside a <pic prompt="..."> tag based on the user's input text.
+Your goal is to generate a Stable Diffusion prompt inside a <pic prompt="..."> tag based on the input text.
 
 IMPORTANT: Avoid extreme close-ups. Prefer medium shots, upper body shots, or cowboy shots for better composition.
 
 ${visualData}
 
 ### CONTEXT
-- Current Speaker (User): ${userName}
-- Partner (Character): ${characterName}
+- Poster: ${isCharacterPost ? characterName : userName}
+- Partner: ${isCharacterPost ? userName : characterName}
 - Camera Mode: ${photoTypeHint}
-
-### INSTRUCTION (Follow strictly)
-Analyze the User's Input Text to determine the **Subject** of the photo:
-
-1. **IF User implies themselves** (e.g., "My outfit", "Me today", "Feeling cute", "I look...", "내 옷", "나", "셀카", "오늘의 나"):
-   -> Use tags from **[SUBJECT A - User/Me]**.
-2. **IF User implies the partner** (e.g., "You look great", "Your smile", "Look at you", "너", "네 모습", "${characterName}"):
-   -> Use tags from **[SUBJECT B - Character/Partner]**.
-3. **IF User implies both** (e.g., "Us", "Together", "같이", "우리"):
-   -> Combine tags from BOTH subjects.
-4. **IF Scenery/Object** (e.g., "food", "view", "sky", "음식", "풍경"):
-   -> Describe the object/scene based on input, ignore character tags.
+${subjectInstruction}
 
 ### OUTPUT FORMAT
 Output ONLY the XML tag. Do not explain.
 <pic prompt="(visual tags of the determined subject), (scene details), (lighting/mood), (camera mode)">
 
 ### REQUEST
-User's Input: "${userInput}"
+Input: "${userInput}"
 `;
 
         try {
@@ -1541,7 +1567,7 @@ Example output:
                 if (result.newPost.imagePrompt && result.newPost.imagePrompt.trim()) {
                     try {
                         const photoType = detectPhotoType(result.newPost.imagePrompt, result.newPost.caption);
-                        savedDetailedPrompt = await generateDetailedPrompt(result.newPost.imagePrompt, charName, photoType);
+                        savedDetailedPrompt = await generateDetailedPrompt(result.newPost.imagePrompt, charName, photoType, true);
                         imageUrl = await generateImage(savedDetailedPrompt);
                     } catch (e) {
                         console.warn('[Instagram] 이미지 생성 실패:', e);
@@ -3084,7 +3110,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 savedImagePrompt = await generateDetailedPrompt(
                     `${charName} Instagram photo, ${caption}`,
                     charName,
-                    photoType
+                    photoType,
+                    true  // isCharacterPost - 캐릭터가 올리는 포스트
                 );
                 imageUrl = await generateImage(savedImagePrompt);
             } catch (e) {
