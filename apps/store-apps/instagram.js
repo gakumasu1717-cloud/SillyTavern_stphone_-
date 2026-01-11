@@ -1219,8 +1219,57 @@ User's Input: "${userInput}"
         throw new Error("이미지 생성 실패");
     }
 
-    // ========== 통합 AI 호출 (3회 → 1회) ==========
-    async function generatePostAllInOne(charName, personality) {
+    // ========== Pending Comments 조회 ==========
+    function getPendingComments(charName) {
+        const user = getUserInfo();
+        const pendingComments = [];
+        
+        for (const post of posts) {
+            // 1. 캐릭터 본인 게시물 - 유저 댓글에 답글 필요
+            if (post.author.toLowerCase() === charName.toLowerCase()) {
+                const userComments = post.comments.filter(c => c.author === user.name);
+                if (userComments.length > 0) {
+                    const lastUserComment = userComments[userComments.length - 1];
+                    const hasCharReplyAfter = post.comments.some(c => 
+                        c.author.toLowerCase() === charName.toLowerCase() && 
+                        c.id > lastUserComment.id
+                    );
+                    if (!hasCharReplyAfter) {
+                        pendingComments.push({
+                            postId: post.id,
+                            type: 'reply',
+                            postCaption: post.caption?.substring(0, 50) || '',
+                            userComment: lastUserComment.text?.substring(0, 80) || '',
+                            commentId: lastUserComment.id
+                        });
+                    }
+                }
+                continue;
+            }
+            
+            // 2. 유저 게시물 - 캐릭터 댓글 필요
+            if (post.author !== user.name && !post.isUser) continue;
+            
+            const hasCharComment = post.comments.some(c => 
+                c.author.toLowerCase() === charName.toLowerCase()
+            );
+            
+            if (!hasCharComment) {
+                pendingComments.push({
+                    postId: post.id,
+                    type: 'comment',
+                    postCaption: post.caption?.substring(0, 100) || '',
+                    userComment: null,
+                    commentId: null
+                });
+            }
+        }
+        
+        return pendingComments;
+    }
+
+    // ========== 통합 AI 호출 (포스팅 + 댓글 한 번에) ==========
+    async function generateAllSocialActivity(charName, personality) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         const context = getRecentChatContext();
         const contact = getContactByName(charName);
@@ -1229,14 +1278,13 @@ User's Input: "${userInput}"
         let visualTags = contact?.tags || '';
         if (!visualTags.trim() && contact?.persona) {
             visualTags = extractVisualHints(contact.persona);
-            console.log('[Instagram] tags 없음, persona에서 추출:', visualTags);
         }
         
-        // 캘린더 정보 가져오기
+        // 캘린더 정보
         const calInfo = getCalendarInfo();
         const currentDate = calInfo?.formatted || new Date().toLocaleDateString('ko-KR');
         
-        // 기념일 정보 가져오기
+        // 기념일 정보
         let eventsInfo = '';
         const Calendar = window.STPhone.Apps?.Calendar;
         if (Calendar?.getEventsOnlyPrompt) {
@@ -1246,79 +1294,114 @@ User's Input: "${userInput}"
             }
         }
         
-        // settings에서 템플릿 가져오기, 없으면 기본값 사용 (Instagram 전용, 사진 선택적)
-        let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
+        // Pending Comments 조회
+        loadPosts();
+        const pendingComments = getPendingComments(charName);
+        
+        // Pending Comments 섹션 생성
+        let pendingCommentsSection = '';
+        if (pendingComments.length > 0) {
+            const commentsList = pendingComments.map((c, idx) => {
+                if (c.type === 'reply') {
+                    return `  ${idx + 1}. [Reply Needed] Post: "${c.postCaption}" / User's comment: "${c.userComment}"`;
+                } else {
+                    return `  ${idx + 1}. [Comment Needed] User's post: "${c.postCaption}"`;
+                }
+            }).join('\n');
+            
+            pendingCommentsSection = `
+
+### Pending Comments (${pendingComments.length} items)
+${commentsList}`;
+        }
+        
+        // 통합 프롬프트
+        const prompt = `You are ${charName}. Based on the recent chat context, decide your Instagram activity.
 
 ### Current Situation
-- Date: {{currentDate}}{{eventsInfo}}
-- Context Summary: {{context}}
+- Date: ${currentDate}${eventsInfo}
+- Context Summary: ${context}
 
 ### Character Profile
-- Personality: {{personality}}
-- Base Visual Tags: {{visualTags}}
-
-### Guidelines for Posting
-1. **Decision (shouldPost)**: Only post if the current moment is memorable, emotional, or worth sharing. Do NOT post if the situation is urgent, dangerous, or highly private.
-
-2. **Post Type**: You can choose to post:
-   - **Photo + Caption**: For visually memorable moments (dates, outfits, food, scenery, selfies)
-   - **Text Only**: For quick thoughts, feelings, random musings, jokes, or reactions (leave imagePrompt empty)
-
-3. **Caption**: Write in natural, casual Korean (Gen-Z/Millennial style). Use emojis if it fits. 1-2 sentences.
-
-4. **Image Prompt (Optional)**:
-   - Include if posting a photo. Leave empty ("") for text-only posts.
-   - If including: Combine visual tags with context details (pose, background, lighting).
-   - Format: (subject tags), (action/pose), (outfit), (background), (lighting/style)
+- Personality: ${personality}
+- Base Visual Tags: ${visualTags}
+${pendingCommentsSection}
 
 ### Task
-Respond in JSON format ONLY:
+Decide TWO things:
+1. **New Post**: Should you post something new? Only if the moment is memorable/emotional/worth sharing.
+2. **Comment Replies**: Reply to any pending comments from the list above.
+
+### Output Format (JSON ONLY):
 {
-    "shouldPost": true,
-    "caption": "Short casual caption in Korean",
-    "imagePrompt": "detailed SD prompt here OR empty string for text-only"
+    "newPost": {
+        "shouldPost": true,
+        "caption": "Short casual caption in Korean",
+        "imagePrompt": "SD prompt OR empty string for text-only"
+    },
+    "commentReplies": [
+        { "index": 1, "text": "Reply in Korean, 1-2 sentences" },
+        { "index": 2, "text": "Another reply..." }
+    ]
 }
 
-Examples:
-- Photo post: {"shouldPost": true, "caption": "오늘 카페 분위기 좋다 ☕", "imagePrompt": "1girl, cafe interior, holding coffee, warm lighting, cozy atmosphere"}
-- Text-only: {"shouldPost": true, "caption": "아 배고파... 뭐 먹지", "imagePrompt": ""}
+### Rules:
+- If no post needed: set newPost.shouldPost to false, leave caption/imagePrompt empty
+- If no pending comments: set commentReplies to empty array []
+- Comments should be natural, casual, match your personality
+- Use emojis if it fits your character
 
-If 'shouldPost' is false, set other fields to empty strings.`;
-
-        // 플레이스홀더 치환
-        const prompt = promptTemplate
-            .replace(/\{\{charName\}\}/g, charName)
-            .replace(/\{\{currentDate\}\}/g, currentDate)
-            .replace(/\{\{eventsInfo\}\}/g, eventsInfo)
-            .replace(/\{\{context\}\}/g, context)
-            .replace(/\{\{personality\}\}/g, personality)
-            .replace(/\{\{visualTags\}\}/g, visualTags);
+Example output:
+{
+    "newPost": { "shouldPost": false, "caption": "", "imagePrompt": "" },
+    "commentReplies": [
+        { "index": 1, "text": "ㅋㅋㅋ 고마워~" },
+        { "index": 2, "text": "오 이거 어디야?? 나도 가고싶다 ㅠ" }
+    ]
+}`;
 
         try {
-            const result = await generateWithAI(prompt, 400);
+            const result = await generateWithAI(prompt, 600);
             const jsonMatch = String(result || '').match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 try {
                     const parsed = JSON.parse(jsonMatch[0]);
                     return {
-                        shouldPost: !!parsed.shouldPost,
-                        caption: parsed.caption || '',
-                        imagePrompt: parsed.imagePrompt || '' // 빈 문자열이면 텍스트 전용 포스트
+                        newPost: {
+                            shouldPost: !!parsed.newPost?.shouldPost,
+                            caption: parsed.newPost?.caption || '',
+                            imagePrompt: parsed.newPost?.imagePrompt || ''
+                        },
+                        commentReplies: Array.isArray(parsed.commentReplies) ? parsed.commentReplies : [],
+                        pendingComments: pendingComments // 원본 데이터도 함께 반환
                     };
                 } catch (parseError) {
                     console.warn('[Instagram] JSON 파싱 실패:', parseError.message);
-                    console.warn('[Instagram] 파싱 시도한 JSON:', jsonMatch[0].substring(0, 200) + (jsonMatch[0].length > 200 ? '...' : ''));
                 }
             }
         } catch (e) {
             console.warn('[Instagram] AI 호출 실패:', e);
         }
         
-        return { shouldPost: false, caption: null, imagePrompt: null };
+        return { 
+            newPost: { shouldPost: false, caption: '', imagePrompt: '' }, 
+            commentReplies: [],
+            pendingComments: []
+        };
     }
 
-    // ========== 프로액티브 포스트 ==========
-    async function checkProactivePost(charName) {
+    // ========== 기존 generatePostAllInOne (하위 호환) ==========
+    async function generatePostAllInOne(charName, personality) {
+        const result = await generateAllSocialActivity(charName, personality);
+        return {
+            shouldPost: result.newPost.shouldPost,
+            caption: result.newPost.caption,
+            imagePrompt: result.newPost.imagePrompt
+        };
+    }
+
+    // ========== 통합 SNS 활동 처리 (포스팅 + 댓글 한 번에) ==========
+    async function processAllSocialActivity(charName) {
         // 인스타그램 앱 설치 여부 체크
         if (!isInstagramInstalled()) {
             return;
@@ -1328,68 +1411,126 @@ If 'shouldPost' is false, set other fields to empty strings.`;
         
         if (settings.instagramPostEnabled === false) return;
         if (isGeneratingPost) return;
-        
-        // 확률 체크 (기본 15%)
-        const chance = settings.instagramPostChance || 15;
-        const roll = Math.random() * 100;
-        if (roll > chance) return;
 
         // 연락처에서 성격 정보 가져오기
         const personality = getCharacterPersonality(charName);
         
-        console.log('[Instagram] 프로액티브 포스트 시도:', { charName, personalityLength: personality.length });
+        console.log('[Instagram] 통합 SNS 활동 처리:', { charName });
 
         isGeneratingPost = true;
         
         try {
-            const result = await generatePostAllInOne(charName, personality);
+            // 통합 AI 호출 (포스팅 결정 + 댓글 한 번에)
+            const result = await generateAllSocialActivity(charName, personality);
             
-            if (!result.shouldPost) return;
-
-            console.log('[Instagram] 프로액티브 포스팅 생성 중...');
-
-            // 이미지 생성 (imagePrompt가 있을 때만 - 텍스트 전용 포스트 지원)
-            let imageUrl = null;
+            let activityCount = 0;
             
-            if (result.imagePrompt && result.imagePrompt.trim()) {
-                try {
-                    // 사진 타입 추론 (selfie가 기본)
-                    const photoType = detectPhotoType(result.imagePrompt, result.caption);
-                    const detailedPrompt = await generateDetailedPrompt(result.imagePrompt, charName, photoType);
-                    imageUrl = await generateImage(detailedPrompt);
-                } catch (e) {
-                    console.warn('[Instagram] 이미지 생성 실패:', e);
+            // 1. 댓글/답글 처리 (포스팅 확률과 무관하게 항상 처리)
+            if (result.commentReplies && result.commentReplies.length > 0 && result.pendingComments.length > 0) {
+                loadPosts();
+                const user = getUserInfo();
+                
+                for (const reply of result.commentReplies) {
+                    const idx = (reply.index || 0) - 1;
+                    if (idx < 0 || idx >= result.pendingComments.length) continue;
+                    
+                    const pending = result.pendingComments[idx];
+                    const targetPost = posts.find(p => p.id === pending.postId);
+                    if (!targetPost) continue;
+                    
+                    const replyText = reply.text?.trim();
+                    if (!replyText || replyText.length < 2) continue;
+                    
+                    const cleanReply = stripDateTag(replyText);
+                    if (!cleanReply || cleanReply.length < 2) continue;
+                    
+                    targetPost.comments.push({
+                        id: Date.now() + idx,
+                        author: charName,
+                        authorAvatar: getContactAvatar(charName),
+                        text: cleanReply,
+                        timestamp: getRpTimestamp()
+                    });
+                    
+                    activityCount++;
+                    
+                    if (pending.type === 'reply') {
+                        addHiddenLog(charName, `[Instagram 답글] ${charName}가 ${user.name}의 댓글에 답글을 남겼습니다: "${cleanReply}"`);
+                    } else {
+                        addHiddenLog(charName, `[Instagram 댓글] ${charName}가 게시물에 댓글을 남겼습니다: "${cleanReply}"`);
+                    }
+                }
+                
+                if (activityCount > 0) {
+                    savePosts();
+                    console.log('[Instagram] 댓글', activityCount, '개 추가 완료');
                 }
             }
-
-            // 게시물 추가
-            loadPosts();
-            const newPost = {
-                id: Date.now(),
-                author: charName,
-                authorAvatar: getContactAvatar(charName),
-                imageUrl: imageUrl || '', // 텍스트 전용 포스트는 이미지 없음
-                caption: result.caption,
-                timestamp: getRpTimestamp(),
-                likes: Math.floor(Math.random() * 50) + 10,
-                likedByUser: false,
-                comments: [],
-                isUser: false
-            };
-
-            posts.unshift(newPost);
-            savePosts();
-
-            const postType = imageUrl ? '📸 사진' : '💬 텍스트';
-            addHiddenLog(charName, `[Instagram 포스팅] ${charName}가 Instagram에 ${postType} 글을 올렸습니다: "${result.caption}"`);
             
-            if (window.toastr) {
-                toastr.info(`📸 ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
+            // 2. 포스팅 처리 (확률 체크 적용)
+            const chance = settings.instagramPostChance || 15;
+            const roll = Math.random() * 100;
+            const shouldAttemptPost = roll <= chance;
+            
+            if (shouldAttemptPost && result.newPost.shouldPost) {
+                console.log('[Instagram] 프로액티브 포스팅 생성 중...');
+
+                // 이미지 생성 (imagePrompt가 있을 때만)
+                let imageUrl = null;
+                
+                if (result.newPost.imagePrompt && result.newPost.imagePrompt.trim()) {
+                    try {
+                        const photoType = detectPhotoType(result.newPost.imagePrompt, result.newPost.caption);
+                        const detailedPrompt = await generateDetailedPrompt(result.newPost.imagePrompt, charName, photoType);
+                        imageUrl = await generateImage(detailedPrompt);
+                    } catch (e) {
+                        console.warn('[Instagram] 이미지 생성 실패:', e);
+                    }
+                }
+
+                // 게시물 추가
+                loadPosts();
+                const newPost = {
+                    id: Date.now(),
+                    author: charName,
+                    authorAvatar: getContactAvatar(charName),
+                    imageUrl: imageUrl || '',
+                    caption: result.newPost.caption,
+                    timestamp: getRpTimestamp(),
+                    likes: Math.floor(Math.random() * 50) + 10,
+                    likedByUser: false,
+                    comments: [],
+                    isUser: false
+                };
+
+                posts.unshift(newPost);
+                savePosts();
+                activityCount++;
+
+                const postType = imageUrl ? '📸 사진' : '💬 텍스트';
+                addHiddenLog(charName, `[Instagram 포스팅] ${charName}가 Instagram에 ${postType} 글을 올렸습니다: "${result.newPost.caption}"`);
+                
+                if (window.toastr) {
+                    toastr.info(`📸 ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
+                }
+            }
+            
+            // 3. UI 새로고침 (활동이 있었으면)
+            if (activityCount > 0 && $('.st-insta-app').length) {
+                setTimeout(() => {
+                    loadPosts();
+                    open();
+                }, 100);
             }
             
         } finally {
             isGeneratingPost = false;
         }
+    }
+
+    // ========== 프로액티브 포스트 (하위 호환 - 통합 함수로 위임) ==========
+    async function checkProactivePost(charName) {
+        await processAllSocialActivity(charName);
     }
 
     async function generateCharacterPost(charName, preGeneratedCaption = null) {
@@ -2296,11 +2437,10 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                         
                         const lastMsg = c.chat[c.chat.length - 1];
                         if (lastMsg && !lastMsg.is_user) {
-                            // [중요] 여기서만 포스트 생성 (새 메시지 수신 시)
+                            // [중요] 채팅 태그 파싱 (별도 처리)
                             parseInstagramFromChat(lastMsg.name, lastMsg.mes);
+                            // [통합] 포스팅 + 댓글 한 번에 처리
                             checkProactivePost(lastMsg.name);
-                            // [추가] 모든 미응답 게시물에 댓글 생성
-                            checkAllPendingComments(lastMsg.name);
                         }
                     }, 500);
                 });
