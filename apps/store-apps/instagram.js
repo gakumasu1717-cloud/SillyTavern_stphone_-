@@ -993,71 +993,72 @@ Output ONLY the comment text, no quotes.`
     async function generateDetailedPrompt(userInput, characterName, photoType = 'selfie') {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
-        // 기본 프롬프트
-        const defaultCameraPrompt = `[System] You are an expert Stable Diffusion prompt generator for Instagram photos.
-Output ONLY a single <pic prompt="..."> tag. NO hashtags, NO caption text.`;
-
-        const cameraPromptTemplate = settings.cameraPrompt || defaultCameraPrompt;
-
-        // 사용자 및 캐릭터 정보 가져오기
+        // 1. 사용자(User)와 상대방(Character) 정보 명확히 분리
         const user = getUserInfo();
         const userName = user.name || 'User';
-        const userTags = settings.userTags || 'average appearance';
+        // User 태그가 없으면 기본값 설정 (오류 방지)
+        const userTags = settings.userTags || 'average appearance, casual clothes';
 
         const contact = getContactByName(characterName);
-        const charTags = contact?.tags || '';
+        // Character 태그가 없으면 이름으로 대체
+        const charTags = contact?.tags || `${characterName}, average appearance`;
 
-        // Visual Tag Library 구성
-        let visualLibrary = `### Visual Tag Library\n`;
-        visualLibrary += `1. [${userName} (User)]: ${userTags}\n`; // 사용자 태그 명시
+        // 2. AI에게 제공할 "Visual Data Block" 구성
+        // 단순히 나열하지 않고, 명확한 변수명(Variable)처럼 제공
+        const visualData = `
+### CANDIDATE SUBJECTS (Visual Tags)
+[SUBJECT A - User/Me (${userName})]: ${userTags}
+[SUBJECT B - Character/Partner (${characterName})]: ${charTags}
+`;
 
-        const allContacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
-        let lineNumber = 2;
-        for (const c of allContacts) {
-            if (c?.name && c?.tags) {
-                visualLibrary += `${lineNumber}. [${c.name}]: ${c.tags}\n`;
-                lineNumber++;
-            }
-        }
-
-        // [수정됨] 사진 종류 힌트: 특정 대상을 강제하지 않고 모드만 설명
+        // 3. 사진 모드 힌트 (강제성 제거, 참고용)
         let photoTypeHint = '';
         if (photoType === 'selfie') {
-            photoTypeHint = `Mode: Selfie/Portrait (Focus on the main subject usually one person, camera angle: selfie or close-up)`;
+            photoTypeHint = `Selfie perspective (Handheld camera, close-up)`;
         } else if (photoType === 'group') {
-            photoTypeHint = `Mode: Group shot (Include multiple people)`;
+            photoTypeHint = `Group shot (Both subjects visible)`;
         } else if (photoType === 'scenery') {
-            photoTypeHint = `Mode: Scenery/Object (No humans, focus on environment)`;
+            photoTypeHint = `Scenery/Object (Focus on environment, minimal human focus)`;
         } else {
-            photoTypeHint = `Mode: General Photo (Determine subject from context)`;
+            photoTypeHint = `General shot`;
         }
 
-        // [수정됨] AI 지시사항: 주체 식별 로직 강화
-        const aiInstruction = `${cameraPromptTemplate}
+        // 4. 핵심: AI 판단 로직이 담긴 프롬프트
+        const aiInstruction = `[System] You are an intelligent prompt generator for a photo simulation.
+Your goal is to generate a Stable Diffusion prompt inside a <pic prompt="..."> tag based on the user's input text.
 
-${visualLibrary}
+${visualData}
 
-### Current Context
-- User Name: ${userName}
-- Character Name: ${characterName}
-- Photo Mode: ${photoTypeHint}
+### CONTEXT
+- Current Speaker (User): ${userName}
+- Partner (Character): ${characterName}
+- Camera Mode: ${photoTypeHint}
 
-### Task
-User's Request (Caption/Context): "${userInput}"
+### INSTRUCTION (Follow strictly)
+Analyze the User's Input Text to determine the **Subject** of the photo:
 
-1. **Identify the Subject**: Analyze the request to decide who is in the photo.
-   - If the User implies themselves (e.g., "my outfit", "me", "feeling cute", "내 옷", "나", "셀카"), use [${userName}]'s tags.
-   - If the User refers to the Character (e.g., "look at you", "your smile", "너", "네 모습"), use [${characterName}]'s tags.
-   - If both are present, combine tags.
-2. **Fetch Visual Tags**: Copy the corresponding visual tags from the 'Visual Tag Library' above.
-3. **Add Details**: Add scene, lighting, and mood tags based on the context.
-4. **Output**: Generate comma-separated tags inside the XML tag.
+1. **IF User implies themselves** (e.g., "My outfit", "Me today", "Feeling cute", "I look...", "내 옷", "나", "셀카", "오늘의 나"):
+   -> Use tags from **[SUBJECT A - User/Me]**.
+2. **IF User implies the partner** (e.g., "You look great", "Your smile", "Look at you", "너", "네 모습", "${characterName}"):
+   -> Use tags from **[SUBJECT B - Character/Partner]**.
+3. **IF User implies both** (e.g., "Us", "Together", "같이", "우리"):
+   -> Combine tags from BOTH subjects.
+4. **IF Scenery/Object** (e.g., "food", "view", "sky", "음식", "풍경"):
+   -> Describe the object/scene based on input, ignore character tags.
 
-Example output format:
-<pic prompt="1girl, solo, long black hair, blue eyes, casual outfit, selfie, phone in hand, indoor, soft lighting">`;
+### OUTPUT FORMAT
+Output ONLY the XML tag. Do not explain.
+<pic prompt="(visual tags of the determined subject), (scene details), (lighting/mood), (camera mode)">
+
+### REQUEST
+User's Input: "${userInput}"
+`;
 
         try {
-            const result = await generateWithAI(aiInstruction, 200);
+            // AI에게 판단 요청
+            const result = await generateWithAI(aiInstruction, 250);
+
+            // 정규식으로 태그 추출
             const regex = /<pic[^>]*\sprompt="([^"]*)"[^>]*?>/i;
             const match = String(result || '').match(regex);
 
@@ -1068,6 +1069,7 @@ Example output format:
             console.warn('[Instagram] AI 프롬프트 생성 실패:', e);
         }
 
+        // 실패 시 원본 텍스트 반환
         return userInput;
     }
 
@@ -1176,27 +1178,35 @@ Example output format:
         // settings에서 템플릿 가져오기, 없으면 기본값 사용
         let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
-### Current Date
-{{currentDate}}{{eventsInfo}}
+### Current Situation
+- Date: {{currentDate}}{{eventsInfo}}
+- Context Summary: {{context}}
 
-### Context
-{{context}}
+### Character Profile
+- Personality: {{personality}}
+- Base Visual Tags: {{visualTags}}
 
-### Your personality
-{{personality}}
-
-### Your visual tags for image generation
-{{visualTags}}
+### Guidelines for Posting
+1. **Decision (shouldPost)**: Only post if the current moment is memorable, emotional, or visually interesting. Do NOT post if the situation is urgent, dangerous, or highly private.
+2. **Caption**: Write a natural, casual Korean caption (like a real Gen-Z/Millennial Instagram user). Use emojis appropriately. No hashtags.
+3. **Image Prompt**:
+   - MUST include your visual tags as the base.
+   - Add specific details derived from the context:
+     - **Pose/Action**: What are you doing? (e.g., holding a coffee, looking at camera, laughing)
+     - **Outfit**: If mentioned in chat, describe it. If not, use 'casual daily look'.
+     - **Background**: Where are you? (e.g., cafe interior, street at night, bedroom)
+     - **Lighting/Mood**: (e.g., cinematic lighting, cozy atmosphere, bright sunlight)
+   - Format: (subject tags), (action/pose), (outfit), (background), (lighting/style)
 
 ### Task
 Respond in JSON format ONLY:
 {
-    "shouldPost": true or false,
-    "caption": "Short casual caption in Korean (1-2 sentences, NO hashtags)",
-    "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
+    "shouldPost": true,
+    "caption": "Short casual caption in Korean (1-2 sentences).",
+    "imagePrompt": "1girl, solo, (base visual tags), (specific pose from context), (background from context), (lighting/mood tags), best quality, masterpiece"
 }
 
-If the situation is not suitable for posting, set shouldPost to false.`;
+If 'shouldPost' is false, set 'caption' and 'imagePrompt' to empty strings "".`;
 
         // 플레이스홀더 치환
         const prompt = promptTemplate
