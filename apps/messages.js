@@ -3029,6 +3029,49 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                 return;
             }
 
+            // [수정] Instagram 태그를 [IMG:] 태그보다 먼저 처리
+            // [IG_POST] 태그 처리
+            const igPostMatch = replyText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+            if (igPostMatch) {
+                const igCaption = igPostMatch[1].trim();
+                replyText = replyText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                
+                console.log('[Messages] IG_POST 태그 감지 (generateReply):', igCaption.substring(0, 50));
+                
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                    console.log('[Messages] Instagram.createPostFromChat 호출');
+                    Instagram.createPostFromChat(contact.name, igCaption);
+                } else {
+                    console.warn('[Messages] Instagram 앱 없음 또는 createPostFromChat 없음');
+                }
+            }
+            
+            // [IG_REPLY] 태그 처리
+            const igReplyMatch = replyText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+            if (igReplyMatch) {
+                const igReplyText = igReplyMatch[1].trim();
+                replyText = replyText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                console.log('[Messages] IG_REPLY 태그 감지 (generateReply):', igReplyText.substring(0, 50));
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                    Instagram.addReplyFromChat(contact.name, igReplyText);
+                }
+            }
+            
+            // [IG_COMMENT] 태그 처리
+            const igCommentMatch = replyText.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
+            if (igCommentMatch) {
+                const igCommentText = igCommentMatch[1].trim();
+                replyText = replyText.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
+                console.log('[Messages] IG_COMMENT 태그 감지 (generateReply):', igCommentText.substring(0, 50));
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.addCommentFromChat === 'function') {
+                    Instagram.addCommentFromChat(contact.name, igCommentText);
+                }
+            }
+
+            // [IMG:] 태그 처리 (Instagram 태그 처리 후)
             const imgMatch = replyText.match(/\[IMG:\s*([^\]]+)\]/i);
             if (imgMatch) {
                 const imgPrompt = imgMatch[1].trim();
@@ -3040,60 +3083,13 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                     receiveMessage(contactId, '', imgUrl);
                     addHiddenLog(contact.name, `[📩 ${contact.name} -> ${myName}]: (Photo: ${imgPrompt}) ${replyText}`);
                     if ($('#st-typing').length) $('#st-typing').hide();
-                    isGenerating = false; // 종료 상태 처리 추가
+                    isGenerating = false;
                     return;
-                }
-            }
-
-            // [NEW] Instagram 포스팅 태그 처리
-            const igPostMatch = replyText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
-            if (igPostMatch) {
-                const igCaption = igPostMatch[1].trim();
-                replyText = replyText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
-                
-                console.log('[Messages] IG_POST 태그 감지:', igCaption.substring(0, 50));
-                
-                // Instagram 앱이 있으면 포스트 생성 (Store.isInstalled 체크 제거 - 타이밍 이슈)
-                const Instagram = window.STPhone?.Apps?.Instagram;
-                if (Instagram && typeof Instagram.createPostFromChat === 'function') {
-                    console.log('[Messages] Instagram.createPostFromChat 호출');
-                    Instagram.createPostFromChat(contact.name, igCaption);
-                } else {
-                    console.warn('[Messages] Instagram 앱 없음 또는 createPostFromChat 없음', {
-                        hasInstagram: !!Instagram,
-                        hasFunc: typeof Instagram?.createPostFromChat
-                    });
                 }
             }
             
             // (Photo: ...) 패턴 제거 (인스타 포스팅용 이미지 설명)
             replyText = replyText.replace(/\(Photo:\s*[^)]*\)/gi, '').trim();
-            
-            // [NEW] Instagram 답글 태그 처리
-            const igReplyMatch = replyText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
-            if (igReplyMatch) {
-                const igReplyText = igReplyMatch[1].trim();
-                replyText = replyText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
-                
-                console.log('[Messages] IG_REPLY 태그 감지:', igReplyText.substring(0, 50));
-                const Instagram = window.STPhone?.Apps?.Instagram;
-                if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
-                    Instagram.addReplyFromChat(contact.name, igReplyText);
-                }
-            }
-            
-            // [NEW] Instagram 댓글 태그 처리
-            const igCommentMatch = replyText.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
-            if (igCommentMatch) {
-                const igCommentText = igCommentMatch[1].trim();
-                replyText = replyText.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
-                
-                console.log('[Messages] IG_COMMENT 태그 감지:', igCommentText.substring(0, 50));
-                const Instagram = window.STPhone?.Apps?.Instagram;
-                if (Instagram && typeof Instagram.addCommentFromChat === 'function') {
-                    Instagram.addCommentFromChat(contact.name, igCommentText);
-                }
-            }
 
             if (replyText) {
                  let shouldCall = false;
