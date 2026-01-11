@@ -3058,6 +3058,36 @@ If you want to ignore, reply ONLY with: [IGNORE]`;
                 }
             } catch (bankErr) {}
 
+            // #IG_START - Instagram 프롬프트 (설치된 경우에만)
+            let instagramPrompt = '';
+            try {
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    // Settings에서 프롬프트 가져오기
+                    const Settings = window.STPhone?.Apps?.Settings;
+                    const savedPrompt = Settings?.getSettings?.()?.instagramPrompt;
+                    if (savedPrompt) {
+                        instagramPrompt = savedPrompt;
+                    } else {
+                        // 기본값 사용
+                        instagramPrompt = `### 📸 Instagram Posting
+To post on Instagram, append this tag at the END of your message:
+[IG_POST]Your caption here in Korean[/IG_POST]
+
+Example: "오늘 날씨 좋다~ [IG_POST]오늘 카페에서 작업 중! ☕️[/IG_POST]"
+
+Rules:
+- Only post when it makes sense (sharing moments, achievements, etc.)
+- Caption should be casual and short (1-2 sentences, Korean)
+- Do NOT include hashtags
+- Do NOT post every message - only when naturally appropriate`;
+                    }
+                }
+            } catch (igErr) {
+                console.warn('[Messages] Instagram 프롬프트 로드 실패(무시됨):', igErr);
+            }
+            // #IG_END
+
             const messages = [];
 
             // 1. 기본 시스템 정보 (안읽씹 내용 없음)
@@ -3072,6 +3102,7 @@ Personality: ${settings.userPersonality || '(not specified)'}
 ${systemPrompt}
 ${calendarEventsPrompt}
 ${bankPrompt}
+${instagramPrompt}
 
 ### Instructions
 You are ${contact.name} responding to a text message from ${myName}.
