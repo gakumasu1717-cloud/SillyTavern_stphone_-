@@ -2301,16 +2301,9 @@ ${commentTasks}
 
         // UI 새로고침
         open();
-
-        // 캐릭터 답댓글
-        setTimeout(() => {
-            const ctx = window.SillyTavern?.getContext?.();
-            const charName = ctx?.name2 || 'Character';
-            if (!post.isUser) {
-                // 캐릭터 게시물에 댓글 달면 캐릭터가 답글
-                checkCharacterReplyToComment(postId, charName, user.name, text);
-            }
-        }, 2000);
+        
+        // [효율화] 캐릭터 답댓글은 다음 메시지 때 processAllSocialActivity에서 통합 처리됨
+        // 별도 API 호출하지 않음
     }
 
     async function checkCharacterReplyToComment(postId, charName, commenterName, commentText) {
@@ -2995,6 +2988,10 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     async function createPostFromChat(charName, caption) {
         // 인스타그램 앱 설치 여부 체크
         if (!isInstagramInstalled()) return;
+        
+        // [IMG:...] 태그 제거 (이미지 프롬프트용 태그)
+        caption = caption.replace(/\[IMG:[^\]]*\]/gi, '').trim();
+        if (!caption) return; // 캡션이 비어있으면 스킵
         
         // 이미 생성 중이면 무시
         if (isGeneratingPost) return;

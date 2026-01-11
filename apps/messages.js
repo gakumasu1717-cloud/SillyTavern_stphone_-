@@ -3052,6 +3052,21 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                     }
                 }
             }
+            
+            // [NEW] Instagram 댓글 태그 처리
+            const igCommentMatch = replyText.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
+            if (igCommentMatch) {
+                const igCommentText = igCommentMatch[1].trim();
+                replyText = replyText.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
+                
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    const Instagram = window.STPhone?.Apps?.Instagram;
+                    if (Instagram && typeof Instagram.addCommentFromChat === 'function') {
+                        Instagram.addCommentFromChat(contact.name, igCommentText);
+                    }
+                }
+            }
 
             if (replyText) {
                  let shouldCall = false;
@@ -3224,6 +3239,19 @@ Personality: ${settings.userPersonality || '(not specified)'}
                             }
                         }
                         cleanMessage = cleanMessage.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                    }
+                    
+                    // [NEW] 새 고정 형식: [IG_COMMENT]댓글[/IG_COMMENT]
+                    const igCommentMatch = cleanMessage.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
+                    if (igCommentMatch) {
+                        const Store = window.STPhone?.Apps?.Store;
+                        if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                            if (typeof Instagram.addCommentFromChat === 'function') {
+                                Instagram.addCommentFromChat(member.name, igCommentMatch[1].trim());
+                                console.log('[GroupReply] Instagram 댓글 생성 요청:', igCommentMatch[1].substring(0, 50));
+                            }
+                        }
+                        cleanMessage = cleanMessage.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
                     }
                     
                     // 새 패턴: (Instagram: "캡션")
@@ -4710,6 +4738,22 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                     if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
                         Instagram.addReplyFromChat(contact.name, igReplyText);
                         console.log('[Proactive] Instagram 답글 생성 요청:', igReplyText.substring(0, 50));
+                    }
+                }
+            }
+            
+            // [INSTAGRAM_MOD] Instagram 댓글 태그 처리
+            const igCommentMatch = replyText.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
+            if (igCommentMatch) {
+                const igCommentText = igCommentMatch[1].trim();
+                replyText = replyText.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
+                
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                    const Instagram = window.STPhone?.Apps?.Instagram;
+                    if (Instagram && typeof Instagram.addCommentFromChat === 'function') {
+                        Instagram.addCommentFromChat(contact.name, igCommentText);
+                        console.log('[Proactive] Instagram 댓글 생성 요청:', igCommentText.substring(0, 50));
                     }
                 }
             }
