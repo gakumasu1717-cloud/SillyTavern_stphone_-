@@ -1085,6 +1085,9 @@ function stripInstagramTags(text) {
     cleaned = cleaned.replace(/\[Instagram 포스팅\][^\n]*/gi, '');
     cleaned = cleaned.replace(/\[Instagram 답글\][^\n]*/gi, '');
     cleaned = cleaned.replace(/\[Instagram 댓글\][^\n]*/gi, '');
+    // [reply] 태그 제거 (답장 마커)
+    cleaned = cleaned.replace(/\[reply\]/gi, '');
+    cleaned = cleaned.replace(/\[REPLY\s*[^\]]*\]/gi, '');
     // 연속 공백/줄바꿈 정리
     cleaned = cleaned.replace(/\n\s*\n/g, '\n').trim();
     return cleaned;

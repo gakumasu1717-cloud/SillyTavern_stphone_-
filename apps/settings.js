@@ -195,7 +195,7 @@ Keep it under 50 words. Just the description, nothing else.`,
 
         // #IG_START - 인스타그램 설정
         // [인스타그램 포스팅 프롬프트 - 채팅 주입용]
-        instagramPrompt: \`### 📸 Instagram Posting
+        instagramPrompt: `### 📸 Instagram Posting
 To post on Instagram, append this tag at the END of your message:
 [IG_POST]Your caption here in Korean[/IG_POST]
 
@@ -205,13 +205,13 @@ Rules:
 - Only post when it makes sense (sharing moments, achievements, etc.)
 - Caption should be casual and short (1-2 sentences, Korean)
 - Do NOT include hashtags
-- Do NOT post every message - only when naturally appropriate\`,
+- Do NOT post every message - only when naturally appropriate`,
 
         instagramPostEnabled: true,
         instagramPostChance: 15,
         
         // 통합 프롬프트 (상황판단 + 캡션 + 이미지프롬프트 한번에)
-        instaAllInOnePrompt: \`You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
+        instaAllInOnePrompt: `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
 ### Current Date
 {{currentDate}}{{eventsInfo}}
@@ -233,14 +233,14 @@ Respond in JSON format ONLY:
     "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
 }
 
-If the situation is not suitable for posting, set shouldPost to false.\`,
+If the situation is not suitable for posting, set shouldPost to false.`,
 
-        instaCommentPrompt: \`You are {{char}} commenting on {{postAuthor}}'s Instagram post.
+        instaCommentPrompt: `You are {{char}} commenting on {{postAuthor}}'s Instagram post.
 
 Post caption: "{{postCaption}}"
 
 Write a short, natural comment (1 sentence) that fits your personality.
-Output ONLY the comment text, no quotes.\`
+Output ONLY the comment text, no quotes.`
         // #IG_END
     };
 

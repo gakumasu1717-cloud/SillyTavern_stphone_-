@@ -1041,12 +1041,18 @@ Output ONLY the comment text, no quotes.`
         // User 태그가 없으면 기본값 설정 (오류 방지)
         const userTags = settings.userTags || 'average appearance, casual clothes';
 
+        // characterName이 유저 이름과 같으면 유저 자신의 사진
+        const isUserSelfie = (characterName?.toLowerCase() === userName?.toLowerCase());
+        
         const contact = getContactByName(characterName);
         // Character 태그가 없으면 persona(description)에서 추출 시도, 그것도 없으면 이름으로 대체
         let charTags = contact?.tags;
         if (!charTags || charTags.trim() === '') {
-            // persona에서 외모 관련 정보 추출 시도
-            if (contact?.persona) {
+            // 유저 자신의 사진이면 userTags 사용
+            if (isUserSelfie) {
+                charTags = userTags;
+            } else if (contact?.persona) {
+                // persona에서 외모 관련 정보 추출 시도
                 // persona가 있으면 그것을 기반으로 간단한 태그 생성
                 charTags = `${characterName}, ${extractVisualHints(contact.persona)}`;
             } else {
@@ -2242,7 +2248,10 @@ ${commentTasks}
                     $preview.html('<div class="st-insta-spinner"></div><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">이미지 생성 중...</div>');
 
                     // AI 프롬프트 상세화 후 이미지 생성 (카메라/메신저와 동일)
-                    const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
+                    // [FIX] user.name 대신 character.name 사용, photoType 추가
+                    const character = getCharacterInfo();
+                    const photoType = detectPhotoType(prompt, caption);
+                    const detailedPrompt = await generateDetailedPrompt(prompt, character.name, photoType);
                     savedImagePrompt = detailedPrompt; // 프롬프트 저장
                     imageUrl = await generateImage(detailedPrompt);
 

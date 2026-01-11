@@ -229,7 +229,9 @@ const EXTENSION_NAME = 'ST Phone System';
         const cleanedHtml = originalHtml
             .replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '')
             .replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '')
-            .replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '');
+            .replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '')
+            .replace(/\[REPLY\]/gi, '')   // [reply] 태그 제거
+            .replace(/\[reply\]/gi, '');  // 소문자도 제거
         if (cleanedHtml !== originalHtml) {
             textDiv.innerHTML = cleanedHtml;
         }
@@ -279,6 +281,8 @@ const EXTENSION_NAME = 'ST Phone System';
             /^\s*\[IG_POST\]/i,    // 인스타그램 새 고정 형식 숨기기
             /^\s*\[IG_REPLY\]/i,   // 인스타그램 답글 형식 숨기기
             /^\s*\[IG_COMMENT\]/i, // 인스타그램 댓글 형식 숨기기
+            /^\s*\[REPLY\]/i,      // [REPLY] 태그 숨기기
+            /^\s*\[reply\]/i,      // [reply] 태그 숨기기
             // #IG_END
         ];
 
