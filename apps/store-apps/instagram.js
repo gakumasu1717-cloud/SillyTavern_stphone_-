@@ -543,6 +543,8 @@ Output ONLY the comment text, no quotes.`
 
     // ========== 정규식 패턴 상수 ==========
     // 새 고정 형식: [IG_POST]캡션내용[/IG_POST]
+    // ========== 정규식 패턴 상수 ==========
+    // 새 고정 형식: [IG_POST]캡션내용[/IG_POST]
     const INSTAGRAM_PATTERNS = {
         // 새 고정 형식 (권장)
         fixedPost: /\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i,
@@ -807,6 +809,38 @@ Output ONLY the comment text, no quotes.`
         return '';
     }
 
+    // persona(description)에서 외모 관련 힌트 추출
+    function extractVisualHints(persona) {
+        if (!persona || typeof persona !== 'string') return 'average appearance';
+        
+        // 외모 관련 키워드 패턴
+        const visualPatterns = [
+            // 머리카락
+            /(?:black|brown|blonde|red|white|silver|blue|pink|purple|green|yellow|orange|gray|grey)\s*hair/gi,
+            /(?:long|short|medium|curly|straight|wavy)\s*hair/gi,
+            // 눈
+            /(?:blue|green|brown|black|red|purple|golden|amber|heterochromia)\s*eyes?/gi,
+            // 체형
+            /(?:tall|short|slim|muscular|athletic|petite|average)\s*(?:build|body|height)?/gi,
+            // 성별/나이
+            /(?:male|female|boy|girl|man|woman|young|old|teenage|adult)/gi,
+            // 특징
+            /(?:glasses|freckles|scar|tattoo|piercing|beard|mustache)/gi
+        ];
+        
+        const found = [];
+        for (const pattern of visualPatterns) {
+            const matches = persona.match(pattern);
+            if (matches) {
+                found.push(...matches.map(m => m.toLowerCase().trim()));
+            }
+        }
+        
+        // 중복 제거하고 반환
+        const unique = [...new Set(found)];
+        return unique.length > 0 ? unique.join(', ') : 'average appearance';
+    }
+
     function getContactByName(name) {
         const contacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
         return contacts.find(c => c?.name?.toLowerCase() === name?.toLowerCase());
@@ -1004,8 +1038,17 @@ Output ONLY the comment text, no quotes.`
         const userTags = settings.userTags || 'average appearance, casual clothes';
 
         const contact = getContactByName(characterName);
-        // Character 태그가 없으면 이름으로 대체
-        const charTags = contact?.tags || `${characterName}, average appearance`;
+        // Character 태그가 없으면 persona(description)에서 추출 시도, 그것도 없으면 이름으로 대체
+        let charTags = contact?.tags;
+        if (!charTags || charTags.trim() === '') {
+            // persona에서 외모 관련 정보 추출 시도
+            if (contact?.persona) {
+                // persona가 있으면 그것을 기반으로 간단한 태그 생성
+                charTags = `${characterName}, ${extractVisualHints(contact.persona)}`;
+            } else {
+                charTags = `${characterName}, average appearance`;
+            }
+        }
         
         console.log('[Instagram] generateDetailedPrompt 호출:', {
             userName, userTags: userTags?.substring(0, 50),
@@ -1067,15 +1110,26 @@ User's Input: "${userInput}"
         try {
             // AI에게 판단 요청
             const result = await generateWithAI(aiInstruction, 250);
+            const resultStr = String(result || '').trim();
 
-            // 정규식으로 태그 추출 (줄바꿈, 공백, 따옴표 유연성 개선)
-            // AI가 줄바꿈을 넣거나 작은따옴표를 사용할 수 있으므로 유연하게 처리
+            // 1. XML 태그 형식이 있는지 먼저 확인 (줄바꿈, 공백, 따옴표 유연성 개선)
             const regex = /<pic[^>]*prompt=["']([^"']*)["'][^>]*>/i;
-            const match = String(result || '').match(regex);
+            const match = resultStr.match(regex);
 
             if (match && match[1]?.trim()) {
-                return match[1];
+                console.log('[Instagram] XML 태그에서 프롬프트 추출:', match[1].substring(0, 50));
+                return match[1].trim();
             }
+
+            // 2. XML 태그가 없다면? (Fallback)
+            // AI가 지시를 무시하고 태그 목록만 뱉었을 경우를 대비
+            // 결과 텍스트가 비어있지 않고, 콤마(,)가 포함되어 있다면 유효한 프롬프트로 간주
+            if (resultStr.length > 10 && resultStr.includes(',')) {
+                console.log('[Instagram] XML 태그 없음, 원본 텍스트를 프롬프트로 사용:', resultStr.substring(0, 50));
+                return resultStr;
+            }
+            
+            console.log('[Instagram] AI 응답이 유효하지 않음:', resultStr.substring(0, 100));
         } catch (e) {
             console.warn('[Instagram] AI 프롬프트 생성 실패:', e);
         }
@@ -1170,7 +1224,13 @@ User's Input: "${userInput}"
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         const context = getRecentChatContext();
         const contact = getContactByName(charName);
-        const visualTags = contact?.tags || '';
+        
+        // visualTags가 없으면 persona에서 추출 시도
+        let visualTags = contact?.tags || '';
+        if (!visualTags.trim() && contact?.persona) {
+            visualTags = extractVisualHints(contact.persona);
+            console.log('[Instagram] tags 없음, persona에서 추출:', visualTags);
+        }
         
         // 캘린더 정보 가져오기
         const calInfo = getCalendarInfo();
@@ -1186,7 +1246,7 @@ User's Input: "${userInput}"
             }
         }
         
-        // settings에서 템플릿 가져오기, 없으면 기본값 사용
+        // settings에서 템플릿 가져오기, 없으면 기본값 사용 (Instagram 전용, 사진 선택적)
         let promptTemplate = settings.instaAllInOnePrompt || `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
 ### Current Situation
@@ -1198,26 +1258,32 @@ User's Input: "${userInput}"
 - Base Visual Tags: {{visualTags}}
 
 ### Guidelines for Posting
-1. **Decision (shouldPost)**: Only post if the current moment is memorable, emotional, or visually interesting. Do NOT post if the situation is urgent, dangerous, or highly private.
-2. **Caption**: Write a natural, casual Korean caption (like a real Gen-Z/Millennial Instagram user). Use emojis appropriately. No hashtags.
-3. **Image Prompt**:
-   - MUST include your visual tags as the base.
-   - Add specific details derived from the context:
-     - **Pose/Action**: What are you doing? (e.g., holding a coffee, looking at camera, laughing)
-     - **Outfit**: If mentioned in chat, describe it. If not, use 'casual daily look'.
-     - **Background**: Where are you? (e.g., cafe interior, street at night, bedroom)
-     - **Lighting/Mood**: (e.g., cinematic lighting, cozy atmosphere, bright sunlight)
+1. **Decision (shouldPost)**: Only post if the current moment is memorable, emotional, or worth sharing. Do NOT post if the situation is urgent, dangerous, or highly private.
+
+2. **Post Type**: You can choose to post:
+   - **Photo + Caption**: For visually memorable moments (dates, outfits, food, scenery, selfies)
+   - **Text Only**: For quick thoughts, feelings, random musings, jokes, or reactions (leave imagePrompt empty)
+
+3. **Caption**: Write in natural, casual Korean (Gen-Z/Millennial style). Use emojis if it fits. 1-2 sentences.
+
+4. **Image Prompt (Optional)**:
+   - Include if posting a photo. Leave empty ("") for text-only posts.
+   - If including: Combine visual tags with context details (pose, background, lighting).
    - Format: (subject tags), (action/pose), (outfit), (background), (lighting/style)
 
 ### Task
 Respond in JSON format ONLY:
 {
     "shouldPost": true,
-    "caption": "Short casual caption in Korean (1-2 sentences).",
-    "imagePrompt": "1girl, solo, (base visual tags), (specific pose from context), (background from context), (lighting/mood tags), best quality, masterpiece"
+    "caption": "Short casual caption in Korean",
+    "imagePrompt": "detailed SD prompt here OR empty string for text-only"
 }
 
-If 'shouldPost' is false, set 'caption' and 'imagePrompt' to empty strings "".`;
+Examples:
+- Photo post: {"shouldPost": true, "caption": "오늘 카페 분위기 좋다 ☕", "imagePrompt": "1girl, cafe interior, holding coffee, warm lighting, cozy atmosphere"}
+- Text-only: {"shouldPost": true, "caption": "아 배고파... 뭐 먹지", "imagePrompt": ""}
+
+If 'shouldPost' is false, set other fields to empty strings.`;
 
         // 플레이스홀더 치환
         const prompt = promptTemplate
@@ -1237,7 +1303,7 @@ If 'shouldPost' is false, set 'caption' and 'imagePrompt' to empty strings "".`;
                     return {
                         shouldPost: !!parsed.shouldPost,
                         caption: parsed.caption || '',
-                        imagePrompt: parsed.imagePrompt || ''
+                        imagePrompt: parsed.imagePrompt || '' // 빈 문자열이면 텍스트 전용 포스트
                     };
                 } catch (parseError) {
                     console.warn('[Instagram] JSON 파싱 실패:', parseError.message);
@@ -1280,10 +1346,12 @@ If 'shouldPost' is false, set 'caption' and 'imagePrompt' to empty strings "".`;
             
             if (!result.shouldPost) return;
 
-            // 이미지 생성
+            console.log('[Instagram] 프로액티브 포스팅 생성 중...');
+
+            // 이미지 생성 (imagePrompt가 있을 때만 - 텍스트 전용 포스트 지원)
             let imageUrl = null;
             
-            if (result.imagePrompt) {
+            if (result.imagePrompt && result.imagePrompt.trim()) {
                 try {
                     // 사진 타입 추론 (selfie가 기본)
                     const photoType = detectPhotoType(result.imagePrompt, result.caption);
@@ -1300,7 +1368,7 @@ If 'shouldPost' is false, set 'caption' and 'imagePrompt' to empty strings "".`;
                 id: Date.now(),
                 author: charName,
                 authorAvatar: getContactAvatar(charName),
-                imageUrl: imageUrl || '',
+                imageUrl: imageUrl || '', // 텍스트 전용 포스트는 이미지 없음
                 caption: result.caption,
                 timestamp: getRpTimestamp(),
                 likes: Math.floor(Math.random() * 50) + 10,
@@ -1312,7 +1380,12 @@ If 'shouldPost' is false, set 'caption' and 'imagePrompt' to empty strings "".`;
             posts.unshift(newPost);
             savePosts();
 
-            addHiddenLog(charName, `[Instagram 포스팅] ${charName}가 Instagram에 게시물을 올렸습니다: "${result.caption}"`);
+            const postType = imageUrl ? '📸 사진' : '💬 텍스트';
+            addHiddenLog(charName, `[Instagram 포스팅] ${charName}가 Instagram에 ${postType} 글을 올렸습니다: "${result.caption}"`);
+            
+            if (window.toastr) {
+                toastr.info(`📸 ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
+            }
             
         } finally {
             isGeneratingPost = false;
@@ -2315,6 +2388,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     }
     
     // 태그만 제거 (토스트/게시물 생성 없이)
+    // ========== Instagram 태그 정리 함수 ==========
     function cleanInstagramTags(msgNode) {
         if (msgNode.dataset.instagramCleaned) return;
         const textDiv = msgNode.querySelector('.mes_text');
@@ -2324,13 +2398,13 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         let html = decodeHtmlEntities(textDiv.innerHTML);
         let modified = false;
         
-        // 새 고정 형식
+        // Instagram 패턴
         if (html.includes('[IG_POST]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.igPostGlobal, '');
             modified = true;
         }
         if (html.includes('[IG_REPLY]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.fixedReplyGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.igReplyGlobal, '');
             modified = true;
         }
         
@@ -2361,15 +2435,15 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         msgNode.dataset.instagramChecked = "true";
     }
 
-    // 메시지에서 Instagram 포스팅 태그 감지 (새 메시지용)
-    // [중요] Observer에서는 태그 숨기기만! 포스트 생성은 MESSAGE_RECEIVED 이벤트에서만
-    function checkMessageForInstagram(msgNode) {
-        // 인스타그램 앱 설치 여부 체크
-        if (!isInstagramInstalled()) {
-            return;
-        }
+    // ========== Instagram 메시지 처리 (Observer용) ==========
+    // 메시지가 DOM에 추가되자마자 태그 숨김 + 데이터 추출을 동시에 처리
+    function processInstagramMessage(msgNode) {
+        // 중복 처리 방지
+        if (msgNode.dataset.instagramProcessed) return;
         
-        if (msgNode.dataset.instagramChecked) return;
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) return;
+        
         if (msgNode.getAttribute('is_user') === 'true') return;
         if (msgNode.classList.contains('st-phone-hidden-log') || msgNode.style.display === 'none') return;
 
@@ -2380,17 +2454,19 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         let html = decodeHtmlEntities(textDiv.innerHTML);
         let modified = false;
         
-        // 태그 제거만 (포스트 생성은 MESSAGE_RECEIVED에서 함)
+        // 1. [IG_POST] 태그 파싱 및 추출
         if (html.includes('[IG_POST]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.igPostGlobal, '');
             modified = true;
         }
         
+        // 2. [IG_REPLY] 태그
         if (html.includes('[IG_REPLY]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.fixedReplyGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.igReplyGlobal, '');
             modified = true;
         }
         
+        // 3. 레거시 패턴들
         if (html.includes('(Instagram:')) {
             html = html.replace(INSTAGRAM_PATTERNS.parenPostGlobal, '');
             modified = true;
@@ -2411,14 +2487,26 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             modified = true;
         }
         
+        // HTML 업데이트 (태그가 제거된 깨끗한 텍스트로 변경)
         if (modified) {
             textDiv.innerHTML = html.trim();
+            msgNode.dataset.instagramProcessed = "true";
             msgNode.dataset.instagramCleaned = "true";
+            msgNode.dataset.instagramChecked = "true";
         }
-        msgNode.dataset.instagramChecked = "true";
     }
 
-    // 채팅에서 인스타 포스팅/답글 감지
+    // 하위 호환을 위한 별칭
+    function checkMessageForInstagram(msgNode) {
+        processInstagramMessage(msgNode);
+    }
+    
+    // 레거시 별칭
+    function processSNSMessage(msgNode) {
+        processInstagramMessage(msgNode);
+    }
+
+    // 채팅에서 Instagram 포스팅/답글 감지
     function parseInstagramFromChat(charName, message) {
         if (!message) return;
         
@@ -2428,24 +2516,25 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // HTML 엔티티 디코딩
         const decodedMessage = decodeHtmlEntities(message);
         
-        // 1. 새 고정 형식
-        const fixedPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.fixedPost);
-        if (fixedPostMatch && fixedPostMatch[1]) {
-            createPostFromChat(charName, fixedPostMatch[1].trim());
+        // 1. [IG_POST] Instagram 포스팅
+        const igPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.igPost);
+        if (igPostMatch && igPostMatch[1]) {
+            createPostFromChat(charName, igPostMatch[1].trim());
         }
         
-        const fixedReplyMatch = decodedMessage.match(INSTAGRAM_PATTERNS.fixedReply);
-        if (fixedReplyMatch && fixedReplyMatch[1]) {
-            addReplyFromChat(charName, fixedReplyMatch[1].trim());
+        // 2. [IG_REPLY] 답글
+        const igReplyMatch = decodedMessage.match(INSTAGRAM_PATTERNS.igReply);
+        if (igReplyMatch && igReplyMatch[1]) {
+            addReplyFromChat(charName, igReplyMatch[1].trim());
         }
         
-        // 2. 괄호 형식
+        // 3. 괄호 형식 (하위 호환)
         const parenPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.parenPost);
         if (parenPostMatch && parenPostMatch[1]) {
             createPostFromChat(charName, parenPostMatch[1].trim());
         }
         
-        // 3. 레거시 패턴 (하위 호환)
+        // 4. 레거시 패턴 (하위 호환)
         const legacyPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.legacyPost);
         if (legacyPostMatch && legacyPostMatch[1]) {
             createPostFromChat(charName, legacyPostMatch[1].trim());
@@ -2553,8 +2642,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         isGeneratingPost = true;
         
         try {
-            // 이미지 생성 (사진 타입 추론)
+            // 이미지 생성 시도 (실패해도 텍스트 전용 포스팅 가능)
             let imageUrl = null;
+            
             try {
                 const photoType = detectPhotoType(caption, caption);
                 const detailedPrompt = await generateDetailedPrompt(
@@ -2564,6 +2654,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 );
                 imageUrl = await generateImage(detailedPrompt);
             } catch (e) {
+                console.warn('[Instagram] 이미지 생성 실패, 텍스트만 포스팅:', e);
                 // 이미지 없어도 포스팅 진행
             }
             
@@ -2573,7 +2664,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 id: Date.now(),
                 author: charName,
                 authorAvatar: getContactAvatar(charName),
-                imageUrl: imageUrl || '',
+                imageUrl: imageUrl || '', // 텍스트 전용은 빈 문자열
                 caption: caption,
                 timestamp: getRpTimestamp(),
                 likes: Math.floor(Math.random() * 50) + 10,
@@ -2586,8 +2677,9 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             savePosts();
             
             // 토스트 알림
+            const postType = imageUrl ? '📸 사진' : '💬 텍스트';
             if (window.toastr) {
-                toastr.info(`📸 ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
+                toastr.info(`${postType} ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
             }
             
             // 인스타 열려있으면 새로고침

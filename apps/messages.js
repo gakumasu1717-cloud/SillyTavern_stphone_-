@@ -1035,9 +1035,37 @@ function getTranslationStorageKey() {
         return all[contactId] || [];
     }
 
+// Instagram/SNS 태그 제거 함수 (메시지 저장 전 정리)
+function stripInstagramTags(text) {
+    if (!text) return text;
+    let cleaned = text;
+    // [IG_POST]...[/IG_POST] 제거
+    cleaned = cleaned.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '');
+    // [IG_REPLY]...[/IG_REPLY] 제거
+    cleaned = cleaned.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '');
+    // 불완전한 태그 제거 (시작/끝만 있는 경우)
+    cleaned = cleaned.replace(/\[IG_POST\][^\[]*/gi, '');
+    cleaned = cleaned.replace(/[^\]]*\[\/IG_POST\]/gi, '');
+    cleaned = cleaned.replace(/\[IG_REPLY\][^\[]*/gi, '');
+    cleaned = cleaned.replace(/[^\]]*\[\/IG_REPLY\]/gi, '');
+    // 괄호 형식 제거
+    cleaned = cleaned.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
+    cleaned = cleaned.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
+    // 레거시 패턴 제거
+    cleaned = cleaned.replace(/\[Instagram \ud3ec\uc2a4\ud305\][^\n]*/gi, '');
+    cleaned = cleaned.replace(/\[Instagram \ub2f5\uae00\][^\n]*/gi, '');
+    cleaned = cleaned.replace(/\[Instagram \ub313\uae00\][^\n]*/gi, '');
+    // 연속 공백/줄바꿈 정리
+    cleaned = cleaned.replace(/\n\s*\n/g, '\n').trim();
+    return cleaned;
+}
+
 function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = false, rpDate = null, replyTo = null) {
     const all = loadAllMessages();
     if (!all[contactId]) all[contactId] = [];
+
+    // Instagram 태그 제거 (저장 전 정리)
+    const cleanedText = stripInstagramTags(text);
 
     const newMsgIndex = all[contactId].length;
     if (addTimestamp) saveTimestamp(contactId, newMsgIndex, Date.now());
@@ -1047,7 +1075,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
 
     const msgData = {
         sender,
-        text,
+        text: cleanedText,
         image: imageUrl,
         timestamp: Date.now(),
         rpDate: rpDate || rpDateStr
