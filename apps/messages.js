@@ -1510,7 +1510,9 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     }
 
     async function receiveMessage(contactId, text, imageUrl = null, replyTo = null) {
-        const newIdx = addMessage(contactId, 'them', text, imageUrl, false, null, replyTo);
+        // Instagram 태그 제거 (저장 + 렌더링 모두 정리된 텍스트 사용)
+        const cleanedText = stripInstagramTags(text);
+        const newIdx = addMessage(contactId, 'them', cleanedText, imageUrl, false, null, replyTo);
 
         const isPhoneActive = $('#st-phone-container').hasClass('active');
         const isViewingThisChat = (currentChatType === 'dm' && currentContactId === contactId);
@@ -1537,11 +1539,11 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             setUnreadCount(contactId, unread);
             updateMessagesBadge();
 
-            const previewText = translatedText || text;
+            const previewText = translatedText || cleanedText;
             const preview = imageUrl ? '사진' : (previewText?.substring(0, 50) || '새 메시지');
             showNotification(contactName, preview, contactAvatar, contactId, 'dm');
         } else {
-            appendBubble('them', text, imageUrl, newIdx, translatedText, replyTo);
+            appendBubble('them', cleanedText, imageUrl, newIdx, translatedText, replyTo);
         }
     }
 
@@ -1877,6 +1879,9 @@ const msgs = getMessages(contactId);
         let lastRenderedRpDate = null;  // 렌더링용 마지막 날짜 추적
 
         msgs.forEach((m, index) => {
+            // [안전장치] 저장된 메시지에 Instagram 태그가 남아있으면 제거
+            const displayText = m.text ? stripInstagramTags(m.text) : '';
+            
             // 커스텀 타임스탬프 표시 (해당 메시지 인덱스 전에 위치한 것들)
             const customTsForIndex = customTimestamps.filter(t => t.beforeMsgIndex === index);
             customTsForIndex.forEach(ts => {
@@ -1929,12 +1934,12 @@ const msgs = getMessages(contactId);
                 msgsHtml += `<div ${imgAttr}><img class="st-msg-image" src="${m.image}">${excludedTag}</div>`;
             }
 
-            if (m.text) {
+            if (displayText) {
                 if (isDeleted) {
                     const lineAttr = `data-action="msg-option" data-idx="${index}" data-line-idx="0" data-sender="${side}" class="st-msg-bubble ${side}${deletedClass} clickable" style="cursor:pointer;" title="옵션 보기"`;
-                    msgsHtml += `<div ${lineAttr}>${m.text}${excludedTag}</div>`;
+                    msgsHtml += `<div ${lineAttr}>${displayText}${excludedTag}</div>`;
                 } else {
-                    const lines = m.text.split('\n');
+                    const lines = displayText.split('\n');
                     const translatedLines = savedTranslation ? savedTranslation.split('\n') : [];
                     let lineIdx = 0;
 
@@ -2160,6 +2165,9 @@ $('#st-chat-cam').off('click').on('click', () => {
         let msgsHtml = '';
 
         msgs.forEach((m, index) => {
+            // [안전장치] 저장된 메시지에 Instagram 태그가 남아있으면 제거
+            const displayText = m.text ? stripInstagramTags(m.text) : '';
+            
             // 커스텀 타임스탬프 표시 (해당 메시지 인덱스 전에 위치한 것들)
             const customTsForIndex = customTimestamps.filter(t => t.beforeMsgIndex === index);
             customTsForIndex.forEach(ts => {
@@ -2174,8 +2182,8 @@ $('#st-chat-cam').off('click').on('click', () => {
                 if (m.image) {
                     msgsHtml += `<div class="st-msg-bubble me"><img class="st-msg-image" src="${m.image}"></div>`;
                 }
-                if (m.text) {
-                    msgsHtml += `<div class="st-msg-bubble me">${m.text}</div>`;
+                if (displayText) {
+                    msgsHtml += `<div class="st-msg-bubble me">${displayText}</div>`;
                 }
                 msgsHtml += `</div>`;
             } else {
@@ -2194,8 +2202,8 @@ $('#st-chat-cam').off('click').on('click', () => {
                 if (m.image) {
                     msgsHtml += `<div class="st-msg-bubble them"><img class="st-msg-image" src="${m.image}"></div>`;
                 }
-                if (m.text) {
-                    msgsHtml += `<div class="st-msg-bubble them">${m.text}</div>`;
+                if (displayText) {
+                    msgsHtml += `<div class="st-msg-bubble them">${displayText}</div>`;
                 }
                 msgsHtml += `</div>`;
             }
@@ -2349,6 +2357,11 @@ $('#st-chat-cam').on('click', () => {
     }
 
     function appendBubble(sender, text, imageUrl, msgIndex, translatedText = null, replyTo = null) {
+        // 안전장치: Instagram 태그가 혹시 남아있으면 제거
+        if (text) {
+            text = stripInstagramTags(text);
+        }
+        
         const side = sender === 'me' ? 'me' : 'them';
         const $container = $('#st-chat-messages');
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
@@ -2414,6 +2427,9 @@ $('#st-chat-cam').on('click', () => {
         const myName = getUserName();
         const isMe = (senderName === myName || senderId === 'me');
         const $container = $('#st-chat-messages');
+        
+        // [안전장치] Instagram 태그 제거
+        const displayText = text ? stripInstagramTags(text) : '';
 
         let avatar = DEFAULT_AVATAR;
         if (!isMe && window.STPhone.Apps?.Contacts) {
@@ -2433,8 +2449,8 @@ $('#st-chat-cam').on('click', () => {
         if (imageUrl) {
             html += `<div class="st-msg-bubble ${isMe ? 'me' : 'them'}"><img class="st-msg-image" src="${imageUrl}"></div>`;
         }
-        if (text) {
-            html += `<div class="st-msg-bubble ${isMe ? 'me' : 'them'}">${text}</div>`;
+        if (displayText) {
+            html += `<div class="st-msg-bubble ${isMe ? 'me' : 'them'}">${displayText}</div>`;
         }
         html += `</div>`;
 
