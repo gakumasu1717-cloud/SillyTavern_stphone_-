@@ -349,6 +349,77 @@ const EXTENSION_NAME = 'ST Phone System';
                 }
             }
         }
+        
+        // #IG_START - [📩 발신자 -> 수신자]: 메시지 패턴 먼저 처리 (히든로그 체크 전에!)
+        // HTML 엔티티(&gt;)도 처리
+        // 여러 줄의 📩 메시지를 모두 처리
+        const phoneMessageRegex = /\[📩\s*(.+?)\s*(?:->|→|&gt;)\s*(.+?)\s*\]:\s*([^\n\[]+)/g;
+        const allMatches = [...rawText.matchAll(phoneMessageRegex)];
+        
+        if (allMatches.length > 0) {
+            const Contacts = window.STPhone.Apps?.Contacts;
+            const Messages = window.STPhone.Apps?.Messages;
+            const userName = window.STPhone.Apps?.Settings?.getSettings?.()?.userName || 'User';
+            
+            for (const match of allMatches) {
+                const senderName = match[1].trim();
+                const receiverName = match[2].trim();
+                let messageText = match[3].trim();
+                
+                // [NEW] Instagram 포스트 생성 (패턴 제거 전에!)
+                const igPostMatch = messageText.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+                if (igPostMatch) {
+                    const caption = igPostMatch[1].trim();
+                    const Store = window.STPhone?.Apps?.Store;
+                    if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                        const Instagram = window.STPhone?.Apps?.Instagram;
+                        if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                            console.log('[STPhone] processSync - Instagram 포스트 생성:', senderName, caption.substring(0, 50));
+                            Instagram.createPostFromChat(senderName, caption);
+                        }
+                    }
+                }
+                
+                // [NEW] Instagram 답글 처리 (패턴 제거 전에!)
+                const igReplyMatch = messageText.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+                if (igReplyMatch) {
+                    const replyText = igReplyMatch[1].trim();
+                    const Store = window.STPhone?.Apps?.Store;
+                    if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                        const Instagram = window.STPhone?.Apps?.Instagram;
+                        if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                            Instagram.addReplyFromChat(senderName, replyText);
+                        }
+                    }
+                }
+                
+                // Instagram 패턴 제거 (새 고정 형식 + 레거시)
+                messageText = messageText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                messageText = messageText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                messageText = messageText.replace(/\[Instagram [^\]]+\][^\n]*/gi, '').trim();
+                messageText = messageText.replace(/\(Instagram[^)]*\)/gi, '').trim();
+                // (Photo: ...) 패턴 제거 (인스타 포스팅용 이미지 설명)
+                messageText = messageText.replace(/\(Photo:\s*[^)]*\)/gi, '').trim();
+                
+                if (messageText && Messages) {
+                    // 발신자가 유저인지 캐릭터인지 판단
+                    const isFromUser = senderName === userName || senderName === receiverName;
+                    
+                    if (!isFromUser) {
+                        // 캐릭터가 유저에게 보낸 메시지 → 수신
+                        const contact = Contacts?.getContactByName?.(senderName);
+                        if (contact && typeof Messages.receiveMessageSequential === 'function') {
+                            Messages.receiveMessageSequential(contact.id, messageText, senderName, userName);
+                        }
+                    }
+                }
+            }
+            
+            // 📩 패턴이 전체 메시지를 차지하면 숨김 처리
+            node.classList.add('st-phone-hidden-log');
+            node.style.display = 'none';
+            return; // 📩 패턴 처리 완료
+        }
         // #IG_END
 
         // 히든로그인지 확인
