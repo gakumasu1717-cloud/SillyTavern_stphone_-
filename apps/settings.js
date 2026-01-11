@@ -734,47 +734,6 @@ function saveToStorage() {
                             </div>
                         </div>
 
-                        <!-- #IG_START - Instagram 설정 섹션 -->
-                        <div class="st-section">
-                            <div class="st-row">
-                                <div>
-                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>인스타그램 자동 포스팅</span>
-                                    <div class="st-desc">AI 캐릭터가 자동으로 Instagram에 포스팅 (끄면 [IG_POST] 태그도 비활성화)</div>
-                                </div>
-                                <input type="checkbox" class="st-switch" id="st-set-insta-post-enabled">
-                            </div>
-
-                            <div id="st-insta-options">
-                                <div class="st-row-block">
-                                    <span class="st-label"><i class="fa-solid fa-dice" style="margin-right:6px;"></i>선제 포스팅 확률</span>
-                                    <span class="st-desc">AI 응답마다 자동 포스팅 확률 (0% = 댓글만 처리)</span>
-                                    <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-                                        <input type="range" id="st-set-insta-post-chance" min="0" max="100" value="15" style="flex:1;">
-                                        <span id="st-insta-post-chance-display" style="min-width:40px; text-align:right;">15%</span>
-                                    </div>
-                                </div>
-                                <div class="st-row-block">
-                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>채팅 주입 프롬프트</span>
-                                    <span class="st-desc">AI가 Instagram 태그를 사용하도록 안내</span>
-                                    <textarea class="st-textarea mono" id="st-prompt-instagram" rows="8"></textarea>
-                                    <button class="st-btn-small" id="st-reset-instagram-prompt">기본값</button>
-                                </div>
-                                <div class="st-row-block">
-                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>통합 게시물 프롬프트</span>
-                                    <span class="st-desc">프로액티브 포스팅 시 상황 판단용</span>
-                                    <textarea class="st-textarea mono" id="st-prompt-insta-allinone" rows="8"></textarea>
-                                    <button class="st-btn-small" id="st-reset-insta-allinone-prompt">기본값</button>
-                                </div>
-                                <div class="st-row-block">
-                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>댓글 생성 프롬프트</span>
-                                    <span class="st-desc">캐릭터 댓글 작성 시 사용</span>
-                                    <textarea class="st-textarea mono" id="st-prompt-insta-comment" rows="6"></textarea>
-                                    <button class="st-btn-small" id="st-reset-insta-comment-prompt">기본값</button>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- #IG_END -->
-
                         <div class="st-section">
                             <div class="st-row">
                                 <div>
@@ -983,7 +942,30 @@ function saveToStorage() {
                             </div>
                         </div>
 
-                        <!-- #IG_START - 인스타그램 프롬프트 섹션 -->
+                        <!-- #IG_START - 인스타그램 설정 + 프롬프트 통합 섹션 -->
+                        <div class="st-section">
+                            <div class="st-row-block">
+                                <span class="st-label" style="font-size: 16px; margin-bottom: 10px;"><i class="fa-brands fa-instagram" style="margin-right:8px; color: #E1306C;"></i>인스타그램 설정</span>
+                            </div>
+                            <div class="st-row">
+                                <div>
+                                    <span class="st-label"><i class="fa-solid fa-camera" style="margin-right:6px;"></i>자동 포스팅</span>
+                                    <div class="st-desc">AI 캐릭터가 자동으로 Instagram에 포스팅 (끄면 [IG_POST] 태그도 비활성화)</div>
+                                </div>
+                                <input type="checkbox" class="st-switch" id="st-set-insta-post-enabled">
+                            </div>
+                            <div id="st-insta-options">
+                                <div class="st-row-block">
+                                    <span class="st-label"><i class="fa-solid fa-dice" style="margin-right:6px;"></i>선제 포스팅 확률</span>
+                                    <span class="st-desc">AI 응답마다 자동 포스팅 확률 (0% = 댓글만 처리)</span>
+                                    <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+                                        <input type="range" id="st-set-insta-post-chance" min="0" max="100" value="15" style="flex:1;">
+                                        <span id="st-insta-post-chance-display" style="min-width:40px; text-align:right;">15%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="st-section">
                             <div class="st-row-block">
                                 <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>인스타그램 채팅 주입 프롬프트</span>
@@ -1277,19 +1259,15 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
             $('#st-airdrop-options').show();
         }
 
-        // #IG_START - Instagram 설정 로드
-        $('#st-set-insta-post-enabled').prop('checked', currentSettings.instagramPostEnabled !== false);
-        $('#st-set-insta-post-chance').val(currentSettings.instagramPostChance || 15);
-        $('#st-insta-post-chance-display').text((currentSettings.instagramPostChance || 15) + '%');
+        // #IG_START - Instagram 설정 로드 (프롬프트 탭)
+        $('#st-set-insta-post-enabled-tab').prop('checked', currentSettings.instagramPostEnabled !== false);
+        $('#st-set-insta-post-chance-tab').val(currentSettings.instagramPostChance || 15);
+        $('#st-insta-post-chance-display-tab').text((currentSettings.instagramPostChance || 15) + '%');
         if (currentSettings.instagramPostEnabled === false) {
-            $('#st-insta-options').hide();
+            $('#st-insta-options-tab').hide();
         } else {
-            $('#st-insta-options').show();
+            $('#st-insta-options-tab').show();
         }
-        $('#st-prompt-instagram').val(currentSettings.instagramPrompt || defaultSettings.instagramPrompt);
-        $('#st-prompt-insta-allinone').val(currentSettings.instaAllInOnePrompt || defaultSettings.instaAllInOnePrompt);
-        $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt || defaultSettings.instaCommentPrompt);
-        // 프롬프트 탭용 인스타그램 프롬프트도 로드
         $('#st-prompt-instagram-tab').val(currentSettings.instagramPrompt || defaultSettings.instagramPrompt);
         $('#st-prompt-insta-allinone-tab').val(currentSettings.instaAllInOnePrompt || defaultSettings.instaAllInOnePrompt);
         $('#st-prompt-insta-comment-tab').val(currentSettings.instaCommentPrompt || defaultSettings.instaCommentPrompt);
@@ -1620,77 +1598,38 @@ $('#st-set-sms-persona').on('input', function() { currentSettings.smsPersona = $
             $('#st-insta-post-chance-display').text(currentSettings.instagramPostChance + '%');
             saveToStorage();
         });
-        $('#st-prompt-instagram').on('input', function() {
-            currentSettings.instagramPrompt = $(this).val();
-            saveToStorage();
-        });
-        $('#st-reset-instagram-prompt').on('click', () => {
-            if(confirm('인스타그램 프롬프트를 기본값으로 되돌릴까요?')) {
-                currentSettings.instagramPrompt = defaultSettings.instagramPrompt;
-                $('#st-prompt-instagram').val(currentSettings.instagramPrompt);
-                saveToStorage();
-            }
-        });
-        $('#st-prompt-insta-allinone').on('input', function() {
-            currentSettings.instaAllInOnePrompt = $(this).val();
-            saveToStorage();
-        });
-        $('#st-reset-insta-allinone-prompt').on('click', () => {
-            if(confirm('인스타그램 올인원 프롬프트를 기본값으로 되돌릴까요?')) {
-                currentSettings.instaAllInOnePrompt = defaultSettings.instaAllInOnePrompt;
-                $('#st-prompt-insta-allinone').val(currentSettings.instaAllInOnePrompt);
-                saveToStorage();
-            }
-        });
-        $('#st-prompt-insta-comment').on('input', function() {
-            currentSettings.instaCommentPrompt = $(this).val();
-            saveToStorage();
-        });
-        $('#st-reset-insta-comment-prompt').on('click', () => {
-            if(confirm('인스타그램 댓글 프롬프트를 기본값으로 되돌릴까요?')) {
-                currentSettings.instaCommentPrompt = defaultSettings.instaCommentPrompt;
-                $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt);
-                saveToStorage();
-            }
-        });
 
         // 프롬프트 탭용 인스타그램 이벤트 핸들러
         $('#st-prompt-instagram-tab').on('input', function() {
             currentSettings.instagramPrompt = $(this).val();
-            $('#st-prompt-instagram').val(currentSettings.instagramPrompt); // 문자 탭과 동기화
             saveToStorage();
         });
         $('#st-reset-instagram-prompt-tab').on('click', () => {
             if(confirm('인스타그램 프롬프트를 기본값으로 되돌릴까요?')) {
                 currentSettings.instagramPrompt = defaultSettings.instagramPrompt;
                 $('#st-prompt-instagram-tab').val(currentSettings.instagramPrompt);
-                $('#st-prompt-instagram').val(currentSettings.instagramPrompt);
                 saveToStorage();
             }
         });
         $('#st-prompt-insta-allinone-tab').on('input', function() {
             currentSettings.instaAllInOnePrompt = $(this).val();
-            $('#st-prompt-insta-allinone').val(currentSettings.instaAllInOnePrompt);
             saveToStorage();
         });
         $('#st-reset-insta-allinone-prompt-tab').on('click', () => {
             if(confirm('인스타그램 올인원 프롬프트를 기본값으로 되돌릴까요?')) {
                 currentSettings.instaAllInOnePrompt = defaultSettings.instaAllInOnePrompt;
                 $('#st-prompt-insta-allinone-tab').val(currentSettings.instaAllInOnePrompt);
-                $('#st-prompt-insta-allinone').val(currentSettings.instaAllInOnePrompt);
                 saveToStorage();
             }
         });
         $('#st-prompt-insta-comment-tab').on('input', function() {
             currentSettings.instaCommentPrompt = $(this).val();
-            $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt);
             saveToStorage();
         });
         $('#st-reset-insta-comment-prompt-tab').on('click', () => {
             if(confirm('인스타그램 댓글 프롬프트를 기본값으로 되돌릴까요?')) {
                 currentSettings.instaCommentPrompt = defaultSettings.instaCommentPrompt;
                 $('#st-prompt-insta-comment-tab').val(currentSettings.instaCommentPrompt);
-                $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt);
                 saveToStorage();
             }
         });
@@ -1962,19 +1901,16 @@ $('#st-reset-user-translate-prompt').on('click', () => {
                 // #IG_START
                 if (imported.instagramPrompt) {
                     currentSettings.instagramPrompt = imported.instagramPrompt;
-                    $('#st-prompt-instagram').val(imported.instagramPrompt);
                     $('#st-prompt-instagram-tab').val(imported.instagramPrompt);
                     importedCount++;
                 }
                 if (imported.instaAllInOnePrompt) {
                     currentSettings.instaAllInOnePrompt = imported.instaAllInOnePrompt;
-                    $('#st-prompt-insta-allinone').val(imported.instaAllInOnePrompt);
                     $('#st-prompt-insta-allinone-tab').val(imported.instaAllInOnePrompt);
                     importedCount++;
                 }
                 if (imported.instaCommentPrompt) {
                     currentSettings.instaCommentPrompt = imported.instaCommentPrompt;
-                    $('#st-prompt-insta-comment').val(imported.instaCommentPrompt);
                     $('#st-prompt-insta-comment-tab').val(imported.instaCommentPrompt);
                     importedCount++;
                 }

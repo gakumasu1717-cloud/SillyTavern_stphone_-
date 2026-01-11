@@ -3246,10 +3246,18 @@ Reply naturally based on the conversation history below.`;
             replyText = replyText.replace(/\(Photo:\s*[^)]*\)/gi, '').trim();
             // #IG_END
 
+            // [수정] Instagram 포스팅 있으면 [IMG:] 무시 (중복 이미지 생성 방지)
+            const hadInstagramPost = !!igPostMatch;
+            
             const imgMatch = replyText.match(/\[IMG:\s*([^\]]+)\]/i);
+            // [IMG:] 태그는 항상 텍스트에서 제거 (인스타 포스팅이 있어도)
             if (imgMatch) {
+                replyText = replyText.replace(/\[IMG:\s*[^\]]+\]/gi, '').trim();
+            }
+            
+            // 인스타 포스팅이 없을 때만 이미지 생성
+            if (imgMatch && !hadInstagramPost) {
                 const imgPrompt = imgMatch[1].trim();
-                replyText = replyText.replace(/\[IMG:\s*[^\]]+\]/i, '').trim();
 
                 const imgUrl = await generateSmartImage(imgPrompt, false);
                 if (imgUrl) {
