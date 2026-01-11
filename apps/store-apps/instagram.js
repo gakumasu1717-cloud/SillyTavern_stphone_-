@@ -2736,9 +2736,55 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
 
         // HTML 엔티티 디코딩
         let html = decodeHtmlEntities(textDiv.innerHTML);
+        const originalHtml = html;
         let modified = false;
         
-        // 1. [IG_POST] 태그 파싱 및 추출
+        // 캐릭터 이름 가져오기 (포스트 생성용)
+        const nameDiv = msgNode.querySelector('.name_text, .ch_name');
+        const charName = nameDiv?.textContent?.trim() || getCharacterInfo()?.name || 'Unknown';
+        
+        // [중요] 태그 제거 전에 포스트/댓글 생성 먼저!
+        // 1. [IG_POST] Instagram 포스팅
+        const igPostMatch = originalHtml.match(INSTAGRAM_PATTERNS.fixedPost);
+        if (igPostMatch && igPostMatch[1]) {
+            createPostFromChat(charName, igPostMatch[1].trim());
+        }
+        
+        // 2. [IG_REPLY] 답글
+        const igReplyMatch = originalHtml.match(INSTAGRAM_PATTERNS.fixedReply);
+        if (igReplyMatch && igReplyMatch[1]) {
+            addReplyFromChat(charName, igReplyMatch[1].trim());
+        }
+        
+        // 3. [IG_COMMENT] 댓글
+        const igCommentMatch = originalHtml.match(INSTAGRAM_PATTERNS.fixedComment);
+        if (igCommentMatch && igCommentMatch[1]) {
+            addCommentFromChat(charName, igCommentMatch[1].trim());
+        }
+        
+        // 4. 레거시 패턴들
+        const parenPostMatch = originalHtml.match(INSTAGRAM_PATTERNS.parenPost);
+        if (parenPostMatch && parenPostMatch[1]) {
+            createPostFromChat(charName, parenPostMatch[1].trim());
+        }
+        
+        const legacyPostMatch = originalHtml.match(INSTAGRAM_PATTERNS.legacyPost);
+        if (legacyPostMatch && legacyPostMatch[1]) {
+            createPostFromChat(charName, legacyPostMatch[1].trim());
+        }
+        
+        const legacyReplyMatch = originalHtml.match(INSTAGRAM_PATTERNS.legacyReply);
+        if (legacyReplyMatch && legacyReplyMatch[1]) {
+            addReplyFromChat(charName, legacyReplyMatch[1].trim());
+        }
+        
+        const legacyCommentMatch = originalHtml.match(INSTAGRAM_PATTERNS.legacyComment);
+        if (legacyCommentMatch && legacyCommentMatch[1]) {
+            addCommentFromChat(charName, legacyCommentMatch[1].trim());
+        }
+        
+        // 이제 태그 제거
+        // 1. [IG_POST] 태그 제거
         if (html.includes('[IG_POST]')) {
             html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
             modified = true;
@@ -2779,10 +2825,10 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // HTML 업데이트 (태그가 제거된 깨끗한 텍스트로 변경)
         if (modified) {
             textDiv.innerHTML = html.trim();
-            msgNode.dataset.instagramProcessed = "true";
-            msgNode.dataset.instagramCleaned = "true";
-            msgNode.dataset.instagramChecked = "true";
         }
+        msgNode.dataset.instagramProcessed = "true";
+        msgNode.dataset.instagramCleaned = "true";
+        msgNode.dataset.instagramChecked = "true";
     }
 
     // 하위 호환을 위한 별칭
