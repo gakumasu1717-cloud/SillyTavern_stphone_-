@@ -3254,6 +3254,14 @@ Reply naturally based on the conversation history below.`;
                     if (replyText) receiveMessage(contactId, replyText);
                     receiveMessage(contactId, '', imgUrl);
                     addHiddenLog(contact.name, `[📩 ${contact.name} -> ${myName}]: (Photo: ${imgPrompt}) ${replyText}`);
+                    
+                    // #IG_START - 이미지 메시지에서도 댓글 처리
+                    if (window.STPhone?.Apps?.Instagram?.checkProactivePost) {
+                        console.log('[Messages] checkProactivePost 호출 (IMG):', contact.name);
+                        window.STPhone.Apps.Instagram.checkProactivePost(contact.name);
+                    }
+                    // #IG_END
+                    
                     if ($('#st-typing').length) $('#st-typing').hide();
                     isGenerating = false;
                     window.STPhone.isPhoneGenerating = false;
@@ -3293,6 +3301,13 @@ Reply naturally based on the conversation history below.`;
                          window.STPhone.Apps.Phone.receiveCall(contact);
                      }, 2000);
                  }
+                 
+                 // #IG_START - 통합 SNS 활동 처리 (포스팅 + 밀린 댓글 한 번에)
+                 if (window.STPhone?.Apps?.Instagram?.checkProactivePost) {
+                     console.log('[Messages] checkProactivePost 호출:', contact.name);
+                     window.STPhone.Apps.Instagram.checkProactivePost(contact.name);
+                 }
+                 // #IG_END
             }
 
         } catch (e) {
@@ -3303,14 +3318,6 @@ Reply naturally based on the conversation history below.`;
         isGenerating = false;
         window.STPhone.isPhoneGenerating = false;
         if ($('#st-typing').length) $('#st-typing').hide();
-        
-        // #IG_START - 통합 SNS 활동 처리 (포스팅 + 밀린 댓글 한 번에)
-        // MESSAGE 앱에서 AI 답장 생성 후 호출
-        if (window.STPhone?.Apps?.Instagram?.checkProactivePost) {
-            console.log('[Messages] checkProactivePost 호출:', contact.name);
-            window.STPhone.Apps.Instagram.checkProactivePost(contact.name);
-        }
-        // #IG_END
     }
 
 
