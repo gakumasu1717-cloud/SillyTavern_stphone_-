@@ -578,6 +578,36 @@ Output ONLY the comment text, no quotes.`
 
     // ========== 유틸리티 함수 ==========
     
+    // 사진 타입 감지 (프롬프트와 캡션에서 추론)
+    function detectPhotoType(imagePrompt, caption) {
+        const combined = `${imagePrompt || ''} ${caption || ''}`.toLowerCase();
+        
+        // 풍경/장소 관련 키워드
+        const sceneryKeywords = ['landscape', 'scenery', 'view', 'sunset', 'sunrise', 'sky', 'beach', 'mountain', 'city', 'building', 'food', '음식', '풍경', '하늘', '노을', '바다', '산', '카페', '음료'];
+        // 그룹 관련 키워드
+        const groupKeywords = ['group', 'together', 'with', '같이', '함께', '우리', 'friends', 'family', 'couple', '커플'];
+        // 셀피 관련 키워드
+        const selfieKeywords = ['selfie', 'self', 'mirror', 'selca', '셀카', '셀피', '거울'];
+        
+        // 풍경 우선 체크 (사람 없는 사진)
+        if (sceneryKeywords.some(kw => combined.includes(kw)) && !combined.includes('person') && !combined.includes('girl') && !combined.includes('boy')) {
+            return 'scenery';
+        }
+        
+        // 그룹 체크
+        if (groupKeywords.some(kw => combined.includes(kw))) {
+            return 'group';
+        }
+        
+        // 셀피 체크 (기본값)
+        if (selfieKeywords.some(kw => combined.includes(kw))) {
+            return 'selfie';
+        }
+        
+        // 기본값은 셀피
+        return 'selfie';
+    }
+    
     // 앱 설치 여부 확인 헬퍼
     function isInstagramInstalled() {
         const Store = window.STPhone?.Apps?.Store;
@@ -960,16 +990,20 @@ Output ONLY the comment text, no quotes.`
         }
     }
 
-    async function generateDetailedPrompt(userInput, characterName) {
+    async function generateDetailedPrompt(userInput, characterName, photoType = 'selfie') {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-        const cameraPromptTemplate = settings.cameraPrompt || `[System] You are an expert image prompt generator.
-Convert the user's description into a detailed image generation prompt.
-Output ONLY a single <pic prompt="..."> tag, nothing else.`;
+        
+        // 기본 프롬프트 템플릿 (짧고 간결한 해시태그/사진 종류 구분)
+        const defaultCameraPrompt = `[System] You are an expert Stable Diffusion prompt generator for Instagram photos.
+Output ONLY a single <pic prompt="..."> tag, nothing else.
+NO hashtags, NO Instagram caption text, ONLY visual tags.`;
+
+        const cameraPromptTemplate = settings.cameraPrompt || defaultCameraPrompt;
 
         const contact = getContactByName(characterName);
         const visualTags = contact?.tags || '';
 
-        // Visual Tag Library 구성
+        // Visual Tag Library 구성 (messages.js 방식 참조)
         const user = getUserInfo();
         const userTags = settings.userTags || '';
         let visualLibrary = `### Visual Tag Library\n`;
@@ -983,17 +1017,35 @@ Output ONLY a single <pic prompt="..."> tag, nothing else.`;
                 lineNumber++;
             }
         }
+        
+        // 사진 종류에 따른 힌트
+        let photoTypeHint = '';
+        if (photoType === 'selfie') {
+            photoTypeHint = `Mode: Selfie/Single person (Focus on ${characterName}, camera angle: selfie perspective)`;
+        } else if (photoType === 'group') {
+            photoTypeHint = `Mode: Group shot (Include multiple people if mentioned)`;
+        } else if (photoType === 'scenery') {
+            photoTypeHint = `Mode: Scenery/Object shot (No people focus, environment/object main subject)`;
+        } else {
+            photoTypeHint = `Mode: General Instagram photo (Determine subject from context)`;
+        }
 
         const aiInstruction = `${cameraPromptTemplate}
 
 ${visualLibrary}
 
+### Photo Type
+${photoTypeHint}
+
 ### Task
 User's request: "${userInput}"
-Based on the Library, identify characters and use their tags.
+1. Identify who appears in the photo from the request.
+2. Copy their Visual Tags from the Library above.
+3. Add scene/mood/lighting tags based on the caption.
+4. Output as comma-separated tags ONLY. No hashtags (#).
 
 Example output format:
-<pic prompt="tags, comma, separated">`;
+<pic prompt="1girl, solo, long black hair, blue eyes, casual outfit, selfie, phone in hand, indoor, soft lighting">`;
 
         try {
             const result = await generateWithAI(aiInstruction, 200);
@@ -1203,7 +1255,9 @@ If the situation is not suitable for posting, set shouldPost to false.`;
             
             if (result.imagePrompt) {
                 try {
-                    const detailedPrompt = await generateDetailedPrompt(result.imagePrompt, charName);
+                    // 사진 타입 추론 (selfie가 기본)
+                    const photoType = detectPhotoType(result.imagePrompt, result.caption);
+                    const detailedPrompt = await generateDetailedPrompt(result.imagePrompt, charName, photoType);
                     imageUrl = await generateImage(detailedPrompt);
                 } catch (e) {
                     console.warn('[Instagram] 이미지 생성 실패:', e);
@@ -1264,10 +1318,12 @@ If the situation is not suitable for posting, set shouldPost to false.`;
 
             if (!caption?.trim()) return;
 
-            // 이미지 생성
+            // 이미지 생성 (사진 타입 추론)
+            const photoType = detectPhotoType(caption, caption);
             const detailedPrompt = await generateDetailedPrompt(
-                `${posterName} selfie for Instagram, ${caption}`,
-                posterName
+                `${posterName} Instagram photo, ${caption}`,
+                posterName,
+                photoType
             );
             const imageUrl = await generateImage(detailedPrompt);
 
@@ -2068,12 +2124,15 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
 
     // ========== 이벤트 리스너 초기화 ==========
     let listenerRegistered = false;
+    // [수정] 채팅 로드 시간을 기록 - 로드 직후 기존 메시지에 반응하지 않기 위함
+    let chatLoadedTime = Date.now();
+    const CHAT_LOAD_COOLDOWN = 3000; // 채팅 로드 후 3초간 포스팅 방지
     
     function initProactivePostListener() {
         console.log('[Instagram] initProactivePostListener 호출됨');
         
         if (listenerRegistered) {
-            console.log('[Instagram] 리스너 이미 등록됨');
+            console.log('[Insta gram] 리스너 이미 등록됨');
             return;
         }
         
@@ -2102,10 +2161,22 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 const ctx = window.SillyTavern.getContext();
                 let lastProcessedMsgId = ctx?.chat?.length || 0;
                 
+                // [수정] 초기 로드 시간 설정
+                chatLoadedTime = Date.now();
+                
                 eventSource.on(eventTypes.MESSAGE_RECEIVED, (messageId) => {
                     setTimeout(() => {
                         const c = window.SillyTavern.getContext();
                         if (!c?.chat || c.chat.length === 0) return;
+                        
+                        // [핵심 수정] 채팅 로드 후 쿨다운 체크 - 페이지 새로고침/채팅 전환 직후 자동 포스팅 방지
+                        const timeSinceLoad = Date.now() - chatLoadedTime;
+                        if (timeSinceLoad < CHAT_LOAD_COOLDOWN) {
+                            console.log('[Instagram] 채팅 로드 직후 쿨다운 중 - 스킵 (', timeSinceLoad, 'ms)');
+                            // 메시지 카운트만 업데이트
+                            lastProcessedMsgId = c.chat.length;
+                            return;
+                        }
                         
                         // 초기 로드 시 기존 메시지는 무시
                         const currentMsgCount = c.chat.length;
@@ -2125,6 +2196,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                             // [중요] 여기서만 포스트 생성 (새 메시지 수신 시)
                             parseInstagramFromChat(lastMsg.name, lastMsg.mes);
                             checkProactivePost(lastMsg.name);
+                            // [추가] 모든 미응답 게시물에 댓글 생성
+                            checkAllPendingComments(lastMsg.name);
                         }
                     }, 500);
                 });
@@ -2135,6 +2208,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                         console.log('[Instagram] 채팅 변경 감지 - 플래그 리셋');
                         initialLoadComplete = false;
                         lastMessageIdOnLoad = -1;
+                        // [수정] 채팅 로드 시간 재설정
+                        chatLoadedTime = Date.now();
                         // 새 채팅의 메시지 수 저장
                         const c = window.SillyTavern.getContext();
                         lastProcessedMsgId = c?.chat?.length || 0;
@@ -2446,12 +2521,14 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         isGeneratingPost = true;
         
         try {
-            // 이미지 생성
+            // 이미지 생성 (사진 타입 추론)
             let imageUrl = null;
             try {
+                const photoType = detectPhotoType(caption, caption);
                 const detailedPrompt = await generateDetailedPrompt(
-                    `${charName} selfie for Instagram, ${caption}`,
-                    charName
+                    `${charName} Instagram photo, ${caption}`,
+                    charName,
+                    photoType
                 );
                 imageUrl = await generateImage(detailedPrompt);
             } catch (e) {
