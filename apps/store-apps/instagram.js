@@ -1339,7 +1339,7 @@ ${commentsList}
 Note: [Image: ...] describes what the photo shows. Consider the image content when writing comments.`;
         }
         
-        // 통합 프롬프트
+        // 통합 프롬프트 - 상세 SD 프롬프트까지 한 번에 생성
         const prompt = `You are ${charName}. Based on the recent chat context, decide your Instagram activity.
 
 ### Current Situation
@@ -1347,8 +1347,9 @@ Note: [Image: ...] describes what the photo shows. Consider the image content wh
 - Context Summary: ${context}
 
 ### Character Profile
+- Name: ${charName}
 - Personality: ${personality}
-- Base Visual Tags: ${visualTags}
+- Visual Tags (MUST USE for selfie): ${visualTags}
 ${pendingCommentsSection}
 
 ### Task
@@ -1361,28 +1362,25 @@ Decide TWO things:
     "newPost": {
         "shouldPost": true,
         "caption": "Short casual caption in Korean",
-        "imagePrompt": "SD prompt OR empty string for text-only"
+        "imagePrompt": "DETAILED Stable Diffusion prompt with character visual tags"
     },
     "commentReplies": [
-        { "index": 1, "text": "Reply in Korean, 1-2 sentences" },
-        { "index": 2, "text": "Another reply..." }
+        { "index": 1, "text": "Reply in Korean, 1-2 sentences" }
     ]
 }
 
-### Rules:
-- If no post needed: set newPost.shouldPost to false, leave caption/imagePrompt empty
-- If no pending comments: set commentReplies to empty array []
-- Comments should be natural, casual, match your personality
-- Use emojis if it fits your character
+### CRITICAL - imagePrompt Rules:
+- For SELFIE: START with character's Visual Tags (${visualTags}), then add pose, scene, lighting
+- For SCENERY: Describe the scene without character tags
+- Format: "visual tags, pose, scene details, lighting, medium shot, upper body"
+- AVOID: close-up, extreme close-up (use medium shot or upper body instead)
+- Example selfie: "${visualTags}, selfie, smile, peace sign, cafe background, soft lighting, medium shot, upper body"
+- Example scenery: "coffee cup, latte art, wooden table, cafe interior, warm lighting, still life"
 
-Example output:
-{
-    "newPost": { "shouldPost": false, "caption": "", "imagePrompt": "" },
-    "commentReplies": [
-        { "index": 1, "text": "ㅋㅋㅋ 고마워~" },
-        { "index": 2, "text": "오 이거 어디야?? 나도 가고싶다 ㅠ" }
-    ]
-}`;
+### Rules:
+- If no post needed: set shouldPost to false, leave caption/imagePrompt empty
+- If no pending comments: set commentReplies to empty array []
+- Comments should be natural, casual, match your personality`;
 
         try {
             const result = await generateWithAI(prompt, 600);
@@ -1529,14 +1527,13 @@ Example output:
                         }
 
                 // 이미지 생성 (imagePrompt가 있을 때만)
+                // [최적화] generateAllSocialActivity에서 이미 상세 프롬프트 생성됨 - generateDetailedPrompt 호출 제거
                 let imageUrl = null;
-                let savedDetailedPrompt = '';
+                const imagePrompt = result.newPost.imagePrompt?.trim() || '';
                 
-                if (result.newPost.imagePrompt && result.newPost.imagePrompt.trim()) {
+                if (imagePrompt) {
                     try {
-                        const photoType = detectPhotoType(result.newPost.imagePrompt, result.newPost.caption);
-                        savedDetailedPrompt = await generateDetailedPrompt(result.newPost.imagePrompt, charName, photoType, true);
-                        imageUrl = await generateImage(savedDetailedPrompt);
+                        imageUrl = await generateImage(imagePrompt);
                     } catch (e) {
                         console.warn('[Instagram] 이미지 생성 실패:', e);
                         if (window.toastr) {
@@ -1553,7 +1550,7 @@ Example output:
                     authorAvatar: getContactAvatar(charName),
                     imageUrl: imageUrl || '',
                     caption: result.newPost.caption,
-                    imagePrompt: savedDetailedPrompt || result.newPost.imagePrompt, // AI가 이미지 내용 인식용
+                    imagePrompt: imagePrompt, // AI가 이미지 내용 인식용
                     timestamp: getRpTimestamp(),
                     likes: Math.floor(Math.random() * 50) + 10,
                     likedByUser: false,
