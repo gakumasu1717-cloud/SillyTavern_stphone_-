@@ -1060,90 +1060,58 @@ Output ONLY the comment text, no quotes.`
             }
         }
         
+        // 포스터/파트너 결정
+        const posterName = isCharacterPost ? characterName : userName;
+        const posterTags = isCharacterPost ? charTags : userTags;
+        const partnerName = isCharacterPost ? userName : characterName;
+        const partnerTags = isCharacterPost ? userTags : charTags;
+        
         console.log('[Instagram] generateDetailedPrompt 호출:', {
-            userName, userTags: userTags?.substring(0, 50),
-            characterName, charTags: charTags?.substring(0, 50),
+            posterName, posterTags: posterTags?.substring(0, 50),
+            partnerName, partnerTags: partnerTags?.substring(0, 50),
             photoType, userInput: userInput?.substring(0, 50),
             isCharacterPost
         });
 
-        // 2. AI에게 제공할 "Visual Data Block" 구성
-        // isCharacterPost가 true면 캐릭터 관점에서 해석
-        let visualData, subjectInstruction;
-        
-        if (isCharacterPost) {
-            // 캐릭터가 포스팅: "나/내/셀카"는 캐릭터를 가리킴
-            visualData = `
-### CANDIDATE SUBJECTS (Visual Tags)
-[SUBJECT A - Poster (${characterName})]: ${charTags}
-[SUBJECT B - Partner (${userName})]: ${userTags}
-`;
-            subjectInstruction = `
-### INSTRUCTION (Follow strictly)
-This caption is written from ${characterName}'s perspective. Analyze to determine the **Subject** of the photo:
-
-1. **IF Poster implies themselves** (e.g., "My selfie", "Me today", "Feeling cute", "I look...", "내 셀카", "나", "셀카", "오늘의 나", "내 사진"):
-   -> Use tags from **[SUBJECT A - Poster (${characterName})]**.
-2. **IF Poster implies the partner** (e.g., "You look great", "Your smile", "${userName}", "너", "네 모습"):
-   -> Use tags from **[SUBJECT B - Partner (${userName})]**.
-3. **IF Poster implies both** (e.g., "Us", "Together", "같이", "우리"):
-   -> Combine tags from BOTH subjects.
-4. **IF Scenery/Object** (e.g., "food", "view", "sky", "음식", "풍경"):
-   -> Describe the object/scene based on input, ignore character tags.`;
-        } else {
-            // 유저가 포스팅: "나/내/셀카"는 유저를 가리킴
-            visualData = `
-### CANDIDATE SUBJECTS (Visual Tags)
-[SUBJECT A - User/Me (${userName})]: ${userTags}
-[SUBJECT B - Character/Partner (${characterName})]: ${charTags}
-`;
-            subjectInstruction = `
-### INSTRUCTION (Follow strictly)
-Analyze the User's Input Text to determine the **Subject** of the photo:
-
-1. **IF User implies themselves** (e.g., "My outfit", "Me today", "Feeling cute", "I look...", "내 옷", "나", "셀카", "오늘의 나"):
-   -> Use tags from **[SUBJECT A - User/Me]**.
-2. **IF User implies the partner** (e.g., "You look great", "Your smile", "Look at you", "너", "네 모습", "${characterName}"):
-   -> Use tags from **[SUBJECT B - Character/Partner]**.
-3. **IF User implies both** (e.g., "Us", "Together", "같이", "우리"):
-   -> Combine tags from BOTH subjects.
-4. **IF Scenery/Object** (e.g., "food", "view", "sky", "음식", "풍경"):
-   -> Describe the object/scene based on input, ignore character tags.`;
-        }
-
-        // 3. 사진 모드 힌트 (강제성 제거, 참고용)
+        // 2. 사진 모드 힌트
         let photoTypeHint = '';
         if (photoType === 'selfie') {
-            photoTypeHint = `Selfie perspective (Handheld camera, upper body or medium shot preferred)`;
+            photoTypeHint = `Selfie (upper body, medium shot)`;
         } else if (photoType === 'group') {
-            photoTypeHint = `Group shot (Both subjects visible, medium to full body)`;
+            photoTypeHint = `Two-shot/Group (both people visible)`;
         } else if (photoType === 'scenery') {
-            photoTypeHint = `Scenery/Object (Focus on environment, minimal human focus)`;
+            photoTypeHint = `Scenery/Object (environment focus)`;
         } else {
-            photoTypeHint = `General shot (medium shot preferred)`;
+            photoTypeHint = `General (medium shot)`;
         }
 
-        // 4. 핵심: AI 판단 로직이 담긴 프롬프트
-        const aiInstruction = `[System] You are an intelligent prompt generator for a photo simulation.
-Your goal is to generate a Stable Diffusion prompt inside a <pic prompt="..."> tag based on the input text.
+        // 3. AI 판단 중심 프롬프트 - 단어 매핑 없이 의미 분석
+        const aiInstruction = `[System] Generate a Stable Diffusion prompt for a photo.
 
-IMPORTANT: Avoid extreme close-ups. Prefer medium shots, upper body shots, or cowboy shots for better composition.
+### PEOPLE INFO
+- POSTER (who is posting): ${posterName}
+  Visual Tags: ${posterTags}
+- PARTNER (the other person): ${partnerName}
+  Visual Tags: ${partnerTags}
 
-${visualData}
-
-### CONTEXT
-- Poster: ${isCharacterPost ? characterName : userName}
-- Partner: ${isCharacterPost ? userName : characterName}
+### PHOTO CONTEXT
+- This post is written by: ${posterName}
 - Camera Mode: ${photoTypeHint}
-${subjectInstruction}
+- Caption/Request: "${userInput}"
+
+### YOUR TASK
+Analyze the caption semantically to determine WHO should appear in the photo:
+- If the poster is taking a photo of THEMSELVES → use POSTER's visual tags
+- If the poster is taking a photo of their PARTNER → use PARTNER's visual tags  
+- If it's a TWO-SHOT (both people together) → combine BOTH visual tags
+- If it's scenery/food/object → describe that instead
+
+IMPORTANT:
+- Avoid extreme close-ups. Use medium shot, upper body, or cowboy shot.
+- Output ONLY the XML tag, nothing else.
 
 ### OUTPUT FORMAT
-Output ONLY the XML tag. Do not explain.
-<pic prompt="(visual tags of the determined subject), (scene details), (lighting/mood), (camera mode)">
-
-### REQUEST
-Input: "${userInput}"
-`;
+<pic prompt="(character visual tags), (pose/action), (scene), (lighting), (shot type)">`;
 
         try {
             // AI에게 판단 요청
