@@ -3303,6 +3303,14 @@ Reply naturally based on the conversation history below.`;
         isGenerating = false;
         window.STPhone.isPhoneGenerating = false;
         if ($('#st-typing').length) $('#st-typing').hide();
+        
+        // #IG_START - 통합 SNS 활동 처리 (포스팅 + 밀린 댓글 한 번에)
+        // MESSAGE 앱에서 AI 답장 생성 후 호출
+        if (window.STPhone?.Apps?.Instagram?.checkProactivePost) {
+            console.log('[Messages] checkProactivePost 호출:', contact.name);
+            window.STPhone.Apps.Instagram.checkProactivePost(contact.name);
+        }
+        // #IG_END
     }
 
 
