@@ -3123,6 +3123,12 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                          window.STPhone.Apps.Phone.receiveCall(contact);
                      }, 2000);
                  }
+                 
+                 // 통합 SNS 활동 처리 (포스팅 + 밀린 댓글 한 번에)
+                 if (window.STPhone?.Apps?.Instagram?.checkProactivePost) {
+                     console.log('[Messages] checkProactivePost 호출:', contact.name);
+                     window.STPhone.Apps.Instagram.checkProactivePost(contact.name);
+                 }
             }
 
         } catch (e) {

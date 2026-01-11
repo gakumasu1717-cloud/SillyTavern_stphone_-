@@ -1252,19 +1252,33 @@ User's Input: "${userInput}"
             // 2. 유저 게시물 - 캐릭터 댓글 필요
             if (post.author !== user.name && !post.isUser) continue;
             
-            const hasCharComment = post.comments.some(c => 
+            const charComments = post.comments.filter(c => 
                 c.author.toLowerCase() === charName.toLowerCase()
             );
             
-            if (!hasCharComment) {
+            if (charComments.length === 0) {
+                // 캐릭터 댓글이 없음 → 첫 댓글 필요
                 pendingComments.push({
                     postId: post.id,
                     type: 'comment',
                     postCaption: post.caption?.substring(0, 100) || '',
-                    imagePrompt: post.imagePrompt || '', // 이미지 설명 추가
+                    imagePrompt: post.imagePrompt || '',
                     userComment: null,
                     commentId: null
                 });
+            } else {
+                // 캐릭터 댓글 있음 → 마지막 댓글이 유저면 답글 필요
+                const lastComment = post.comments[post.comments.length - 1];
+                if (lastComment && lastComment.author === user.name) {
+                    pendingComments.push({
+                        postId: post.id,
+                        type: 'reply',
+                        postCaption: post.caption?.substring(0, 50) || '',
+                        imagePrompt: post.imagePrompt || '',
+                        userComment: lastComment.text?.substring(0, 80) || '',
+                        commentId: lastComment.id
+                    });
+                }
             }
         }
         
