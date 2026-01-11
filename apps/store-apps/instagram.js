@@ -2809,8 +2809,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // 채팅 감지로 댓글 추가 (캐릭터가 아무 게시물에나 댓글)
     function addCommentFromChat(charName, commentText) {
-        // 인스타그램 앱 설치 여부 체크
-        if (!isInstagramInstalled()) return;
+        console.log('[Instagram] addCommentFromChat 호출됨:', { charName, commentPreview: commentText?.substring(0, 50) });
         
         // [핵심 중복 방지] 전체 posts에서 같은 작성자 + 같은 텍스트가 있으면 스킵 (영구적!)
         loadPosts();
@@ -2897,8 +2896,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // 채팅 감지로 답글 추가
     function addReplyFromChat(charName, replyText) {
-        // 인스타그램 앱 설치 여부 체크
-        if (!isInstagramInstalled()) return;
+        console.log('[Instagram] addReplyFromChat 호출됨:', { charName, replyPreview: replyText?.substring(0, 50) });
         
         // [핵심 중복 방지] 전체 posts에서 같은 작성자 + 같은 텍스트가 있으면 스킵 (영구적!)
         loadPosts();
@@ -2986,15 +2984,27 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
     
     // 채팅 감지로 포스트 생성
     async function createPostFromChat(charName, caption) {
-        // 인스타그램 앱 설치 여부 체크
-        if (!isInstagramInstalled()) return;
+        console.log('[Instagram] createPostFromChat 호출됨:', { charName, captionPreview: caption?.substring(0, 50) });
+        
+        // [수정] isInstagramInstalled 체크 제거 - 이 함수가 호출됐다는 건 이미 앱이 로드됐다는 뜻
+        // 대신 필수 의존성만 체크
+        if (!window.STPhone?.Apps?.Store) {
+            console.warn('[Instagram] Store 앱 없음 - 포스트 생성 스킵');
+            return;
+        }
         
         // [IMG:...] 태그 제거 (이미지 프롬프트용 태그)
         caption = caption.replace(/\[IMG:[^\]]*\]/gi, '').trim();
-        if (!caption) return; // 캡션이 비어있으면 스킵
+        if (!caption) {
+            console.log('[Instagram] 캡션이 비어있음 - 스킵');
+            return;
+        }
         
         // 이미 생성 중이면 무시
-        if (isGeneratingPost) return;
+        if (isGeneratingPost) {
+            console.log('[Instagram] 이미 생성 중 - 스킵');
+            return;
+        }
         
         // [핵심 중복 방지] 저장된 포스트에서 같은 작성자 + 같은 캡션이 있으면 스킵 (영구적!)
         loadPosts();

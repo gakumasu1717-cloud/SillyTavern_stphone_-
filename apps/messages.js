@@ -1287,16 +1287,24 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     }
 
     async function receiveMessageSequential(contactId, text, contactName, myName, replyTo = null) {
+        console.log('[Messages] receiveMessageSequential 시작:', { contactName, textPreview: text?.substring(0, 100) });
+        
         // [NEW] 줄 단위 처리 전에 전체 텍스트에서 Instagram 태그 먼저 처리
-        if (window.STPhone.Apps?.Instagram) {
-            const Instagram = window.STPhone.Apps.Instagram;
-            
+        const Instagram = window.STPhone?.Apps?.Instagram;
+        console.log('[Messages] Instagram 앱 체크:', { hasInstagram: !!Instagram, hasFunctions: !!Instagram?.createPostFromChat });
+        
+        if (Instagram) {
             // [IG_POST] 태그 처리 (전체 텍스트에서)
             const igPostMatch = text.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
             if (igPostMatch) {
                 const caption = igPostMatch[1].trim();
+                console.log('[Messages] IG_POST 태그 발견:', caption.substring(0, 50));
                 if (typeof Instagram.createPostFromChat === 'function') {
+                    console.log('[Messages] createPostFromChat 호출 시작');
                     Instagram.createPostFromChat(contactName, caption);
+                    console.log('[Messages] createPostFromChat 호출 완료');
+                } else {
+                    console.warn('[Messages] createPostFromChat 함수 없음');
                 }
                 text = text.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
             }
@@ -1305,6 +1313,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             const igReplyMatch = text.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
             if (igReplyMatch) {
                 const replyContent = igReplyMatch[1].trim();
+                console.log('[Messages] IG_REPLY 태그 발견:', replyContent.substring(0, 50));
                 if (typeof Instagram.addReplyFromChat === 'function') {
                     Instagram.addReplyFromChat(contactName, replyContent);
                 }
@@ -1315,6 +1324,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             const igCommentMatch = text.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
             if (igCommentMatch) {
                 const commentContent = igCommentMatch[1].trim();
+                console.log('[Messages] IG_COMMENT 태그 발견:', commentContent.substring(0, 50));
                 if (typeof Instagram.addCommentFromChat === 'function') {
                     Instagram.addCommentFromChat(contactName, commentContent);
                 }
