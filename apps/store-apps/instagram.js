@@ -2248,11 +2248,8 @@ ${commentTasks}
                 $('#st-insta-create').remove();
                 open();
 
-                // 캐릭터 댓글 트리거
-                setTimeout(() => {
-                    const charInfo = getCharacterInfo();
-                    checkAndGenerateComment(newPost.id, charInfo.name);
-                }, 3000);
+                // [수정] 캐릭터 댓글은 통합 AI 호출(processAllSocialActivity)에서 처리됨
+                // 별도 API 호출 제거로 효율성 개선
 
             } catch (e) {
                 $preview.html('<i class="fa-regular fa-image"></i><div style="font-size: 12px; color: var(--pt-sub-text, #8e8e8e); margin-top: 8px;">공유 시 자동 생성됩니다</div>');
@@ -2772,13 +2769,26 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // 인스타그램 앱 설치 여부 체크
         if (!isInstagramInstalled()) return;
         
-        // 중복 방지
+        // [핵심 중복 방지] 전체 posts에서 같은 작성자 + 같은 텍스트가 있으면 스킵 (영구적!)
+        loadPosts();
+        const normalizedComment = commentText.trim().toLowerCase();
+        const isDuplicateInStorage = posts.some(p => 
+            p.comments?.some(c => 
+                c.author?.toLowerCase() === charName.toLowerCase() && 
+                c.text?.trim().toLowerCase() === normalizedComment
+            )
+        );
+        if (isDuplicateInStorage) {
+            console.log('[Instagram] 중복 댓글 감지 (저장된 데이터) - 스킵:', commentText.substring(0, 30));
+            return;
+        }
+        
+        // 추가 중복 방지 (race condition 방지)
         const commentKey = `comment:${charName}:${commentText}`;
         if (recentReplies.has(commentKey)) return;
         recentReplies.add(commentKey);
         setTimeout(() => recentReplies.delete(commentKey), 5000);
         
-        loadPosts();
         const user = getUserInfo();
         
         let targetPost = null;
@@ -2816,16 +2826,6 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // 대상 게시물 없으면 댓글 안 달음
         if (!targetPost) return;
         
-        // [중복 방지] 저장된 댓글에서 같은 작성자 + 같은 텍스트가 있으면 스킵
-        const isDuplicateComment = targetPost.comments.some(c => 
-            c.author.toLowerCase() === charName.toLowerCase() && 
-            c.text === commentText
-        );
-        if (isDuplicateComment) {
-            console.log('[Instagram] 중복 댓글 감지 - 스킵:', commentText.substring(0, 30));
-            return;
-        }
-        
         // [연속 캐릭터 댓글 방지] 마지막 댓글이 유저가 아니면 스킵
         if (targetPost.comments.length > 0) {
             const lastComment = targetPost.comments[targetPost.comments.length - 1];
@@ -2857,13 +2857,26 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // 인스타그램 앱 설치 여부 체크
         if (!isInstagramInstalled()) return;
         
-        // 중복 방지
+        // [핵심 중복 방지] 전체 posts에서 같은 작성자 + 같은 텍스트가 있으면 스킵 (영구적!)
+        loadPosts();
+        const normalizedReply = replyText.trim().toLowerCase();
+        const isDuplicateInStorage = posts.some(p => 
+            p.comments?.some(c => 
+                c.author?.toLowerCase() === charName.toLowerCase() && 
+                c.text?.trim().toLowerCase() === normalizedReply
+            )
+        );
+        if (isDuplicateInStorage) {
+            console.log('[Instagram] 중복 답글 감지 (저장된 데이터) - 스킵:', replyText.substring(0, 30));
+            return;
+        }
+        
+        // 추가 중복 방지 (race condition 방지)
         const replyKey = `${charName}:${replyText}`;
         if (recentReplies.has(replyKey)) return;
         recentReplies.add(replyKey);
         setTimeout(() => recentReplies.delete(replyKey), 5000);
         
-        loadPosts();
         const user = getUserInfo();
         
         let targetPost = null;
@@ -2907,16 +2920,6 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // 대상 게시물 없으면 댓글 안 달음
         if (!targetPost) return;
-        
-        // [중복 방지] 저장된 답글에서 같은 작성자 + 같은 텍스트가 있으면 스킵
-        const isDuplicateReply = targetPost.comments.some(c => 
-            c.author.toLowerCase() === charName.toLowerCase() && 
-            c.text === replyText
-        );
-        if (isDuplicateReply) {
-            console.log('[Instagram] 중복 답글 감지 - 스킵:', replyText.substring(0, 30));
-            return;
-        }
         
         // 답글/댓글 추가
         targetPost.comments.push({
