@@ -543,20 +543,21 @@ Output ONLY the comment text, no quotes.`
 
     // ========== 정규식 패턴 상수 ==========
     // 새 고정 형식: [IG_POST]캡션내용[/IG_POST]
-    // ========== 정규식 패턴 상수 ==========
-    // 새 고정 형식: [IG_POST]캡션내용[/IG_POST]
     const INSTAGRAM_PATTERNS = {
         // 새 고정 형식 (권장)
         fixedPost: /\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i,
         fixedPostGlobal: /\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi,
         fixedReply: /\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i,
         fixedReplyGlobal: /\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi,
+        fixedComment: /\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i, // 댓글 태그 추가
+        fixedCommentGlobal: /\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi,
         // 기존 패턴 (하위 호환)
         legacyPost: /\[Instagram 포스팅\][^"]*"([^"]+)"/i,
         legacyPostGlobal: /\[Instagram 포스팅\][^\n]*/gi,
         legacyReply: /\[Instagram 답글\][^"]*"([^"]+)"/i,
         legacyReplyGlobal: /\[Instagram 답글\][^\n]*/gi,
-        legacyComment: /\[Instagram 댓글\][^\n]*/gi,
+        legacyComment: /\[Instagram 댓글\][^"]*"([^"]+)"/i, // 파싱용 정규식 수정
+        legacyCommentGlobal: /\[Instagram 댓글\][^\n]*/gi,
         // 괄호 형식 (하위 호환)
         parenPost: /\(Instagram:\s*"([^"]+)"\)/i,
         parenPostGlobal: /\(Instagram:\s*"[^"]+"\)/gi
@@ -1476,8 +1477,22 @@ Example output:
             const roll = Math.random() * 100;
             const shouldAttemptPost = roll <= chance;
             
-            if (shouldAttemptPost && result.newPost.shouldPost) {
+            // 중복 캡션 체크
+            const captionKey = result.newPost.caption?.trim().toLowerCase();
+            const isDuplicate = captionKey && recentPostCaptions.has(captionKey);
+            
+            if (isDuplicate) {
+                console.log('[Instagram] 중복 캡션 감지, 포스팅 스킵:', captionKey);
+            }
+            
+            if (shouldAttemptPost && result.newPost.shouldPost && !isDuplicate) {
                 console.log('[Instagram] 프로액티브 포스팅 생성 중...');
+                
+                // 중복 방지용 캡션 저장
+                if (captionKey) {
+                    recentPostCaptions.add(captionKey);
+                    setTimeout(() => recentPostCaptions.delete(captionKey), 60000);
+                }
 
                 // 이미지 생성 (imagePrompt가 있을 때만)
                 let imageUrl = null;
@@ -2428,6 +2443,13 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 const ctx = window.SillyTavern.getContext();
                 let lastProcessedMsgId = ctx?.chat?.length || 0;
                 
+                // [핵심 수정] 처리된 메시지 인덱스 Set - 영구적 중복 방지
+                const processedMessageIndices = new Set();
+                // 기존 메시지들은 모두 처리됨으로 마킹
+                for (let i = 0; i < lastProcessedMsgId; i++) {
+                    processedMessageIndices.add(i);
+                }
+                
                 // [수정] 초기 로드 시간 설정
                 chatLoadedTime = Date.now();
                 
@@ -2440,16 +2462,26 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                         const timeSinceLoad = Date.now() - chatLoadedTime;
                         if (timeSinceLoad < CHAT_LOAD_COOLDOWN) {
                             console.log('[Instagram] 채팅 로드 직후 쿨다운 중 - 스킵 (', timeSinceLoad, 'ms)');
-                            // 메시지 카운트만 업데이트
+                            // 기존 메시지들 모두 처리됨으로 마킹
+                            for (let i = 0; i < c.chat.length; i++) {
+                                processedMessageIndices.add(i);
+                            }
                             lastProcessedMsgId = c.chat.length;
                             return;
                         }
                         
-                        // 초기 로드 시 기존 메시지는 무시
-                        const currentMsgCount = c.chat.length;
-                        if (currentMsgCount <= lastProcessedMsgId) return;
+                        // messageId가 숫자면 해당 인덱스 사용, 아니면 마지막 메시지 인덱스
+                        const targetIndex = typeof messageId === 'number' ? messageId : c.chat.length - 1;
                         
-                        lastProcessedMsgId = currentMsgCount;
+                        // 이미 처리한 메시지면 스킵
+                        if (processedMessageIndices.has(targetIndex)) {
+                            console.log('[Instagram] 이미 처리된 메시지 인덱스 - 스킵:', targetIndex);
+                            return;
+                        }
+                        
+                        // 처리됨으로 마킹
+                        processedMessageIndices.add(targetIndex);
+                        lastProcessedMsgId = Math.max(lastProcessedMsgId, c.chat.length);
                         
                         // [추가] 유저 메시지가 하나도 없으면 스킵 (그리팅/초기 메시지)
                         const userMsgCount = c.chat.reduce((count, m) => count + (m?.is_user ? 1 : 0), 0);
@@ -2458,12 +2490,14 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                             return;
                         }
                         
-                        const lastMsg = c.chat[c.chat.length - 1];
-                        if (lastMsg && !lastMsg.is_user) {
+                        // 정확한 메시지 가져오기
+                        const targetMsg = c.chat[targetIndex];
+                        if (targetMsg && !targetMsg.is_user) {
+                            console.log('[Instagram] 메시지 처리:', targetIndex, targetMsg.name);
                             // [중요] 채팅 태그 파싱 (별도 처리)
-                            parseInstagramFromChat(lastMsg.name, lastMsg.mes);
+                            parseInstagramFromChat(targetMsg.name, targetMsg.mes);
                             // [통합] 포스팅 + 댓글 한 번에 처리
-                            checkProactivePost(lastMsg.name);
+                            checkProactivePost(targetMsg.name);
                         }
                     }, 500);
                 });
@@ -2563,11 +2597,11 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // Instagram 패턴
         if (html.includes('[IG_POST]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.igPostGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
             modified = true;
         }
         if (html.includes('[IG_REPLY]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.igReplyGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.fixedReplyGlobal, '');
             modified = true;
         }
         
@@ -2587,7 +2621,11 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             modified = true;
         }
         if (html.includes('[Instagram 댓글]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.legacyComment, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyCommentGlobal, '');
+            modified = true;
+        }
+        if (html.includes('[IG_COMMENT]')) {
+            html = html.replace(INSTAGRAM_PATTERNS.fixedCommentGlobal, '');
             modified = true;
         }
         
@@ -2619,13 +2657,13 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         // 1. [IG_POST] 태그 파싱 및 추출
         if (html.includes('[IG_POST]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.igPostGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.fixedPostGlobal, '');
             modified = true;
         }
         
         // 2. [IG_REPLY] 태그
         if (html.includes('[IG_REPLY]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.igReplyGlobal, '');
+            html = html.replace(INSTAGRAM_PATTERNS.fixedReplyGlobal, '');
             modified = true;
         }
         
@@ -2646,7 +2684,12 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         }
         
         if (html.includes('[Instagram 댓글]')) {
-            html = html.replace(INSTAGRAM_PATTERNS.legacyComment, '');
+            html = html.replace(INSTAGRAM_PATTERNS.legacyCommentGlobal, '');
+            modified = true;
+        }
+        
+        if (html.includes('[IG_COMMENT]')) {
+            html = html.replace(INSTAGRAM_PATTERNS.fixedCommentGlobal, '');
             modified = true;
         }
         
@@ -2680,24 +2723,30 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         const decodedMessage = decodeHtmlEntities(message);
         
         // 1. [IG_POST] Instagram 포스팅
-        const igPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.igPost);
+        const igPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.fixedPost);
         if (igPostMatch && igPostMatch[1]) {
             createPostFromChat(charName, igPostMatch[1].trim());
         }
         
         // 2. [IG_REPLY] 답글
-        const igReplyMatch = decodedMessage.match(INSTAGRAM_PATTERNS.igReply);
+        const igReplyMatch = decodedMessage.match(INSTAGRAM_PATTERNS.fixedReply);
         if (igReplyMatch && igReplyMatch[1]) {
             addReplyFromChat(charName, igReplyMatch[1].trim());
         }
         
-        // 3. 괄호 형식 (하위 호환)
+        // 3. [IG_COMMENT] 댓글 (새 태그)
+        const igCommentMatch = decodedMessage.match(INSTAGRAM_PATTERNS.fixedComment);
+        if (igCommentMatch && igCommentMatch[1]) {
+            addCommentFromChat(charName, igCommentMatch[1].trim());
+        }
+        
+        // 4. 괄호 형식 (하위 호환)
         const parenPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.parenPost);
         if (parenPostMatch && parenPostMatch[1]) {
             createPostFromChat(charName, parenPostMatch[1].trim());
         }
         
-        // 4. 레거시 패턴 (하위 호환)
+        // 5. 레거시 패턴 (하위 호환)
         const legacyPostMatch = decodedMessage.match(INSTAGRAM_PATTERNS.legacyPost);
         if (legacyPostMatch && legacyPostMatch[1]) {
             createPostFromChat(charName, legacyPostMatch[1].trim());
@@ -2707,10 +2756,101 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         if (legacyReplyMatch && legacyReplyMatch[1]) {
             addReplyFromChat(charName, legacyReplyMatch[1].trim());
         }
+        
+        // 6. 레거시 댓글 패턴 [Instagram 댓글] "내용"
+        const legacyCommentMatch = decodedMessage.match(INSTAGRAM_PATTERNS.legacyComment);
+        if (legacyCommentMatch && legacyCommentMatch[1]) {
+            addCommentFromChat(charName, legacyCommentMatch[1].trim());
+        }
     }
     
     // 최근 답글 (중복 방지용)
     let recentReplies = new Set();
+    
+    // 채팅 감지로 댓글 추가 (캐릭터가 아무 게시물에나 댓글)
+    function addCommentFromChat(charName, commentText) {
+        // 인스타그램 앱 설치 여부 체크
+        if (!isInstagramInstalled()) return;
+        
+        // 중복 방지
+        const commentKey = `comment:${charName}:${commentText}`;
+        if (recentReplies.has(commentKey)) return;
+        recentReplies.add(commentKey);
+        setTimeout(() => recentReplies.delete(commentKey), 5000);
+        
+        loadPosts();
+        const user = getUserInfo();
+        
+        let targetPost = null;
+        
+        // 1. 먼저 유저가 올린 게시물 중 캐릭터 댓글이 없는 것 찾기 (최신순)
+        for (const post of posts) {
+            if (post.author === user.name || post.isUser) {
+                // 이 게시물에 이미 캐릭터 댓글이 있는지 확인
+                const hasCharComment = post.comments.some(c => 
+                    c.author.toLowerCase() === charName.toLowerCase()
+                );
+                
+                if (!hasCharComment) {
+                    targetPost = post;
+                    break;
+                }
+            }
+        }
+        
+        // 2. 유저 게시물 없으면 캐릭터 본인 게시물에 댓글
+        if (!targetPost) {
+            for (const post of posts) {
+                if (post.author.toLowerCase() === charName.toLowerCase()) {
+                    targetPost = post;
+                    break;
+                }
+            }
+        }
+        
+        // 3. 그래도 없으면 아무 게시물에나
+        if (!targetPost && posts.length > 0) {
+            targetPost = posts[0];
+        }
+        
+        // 대상 게시물 없으면 댓글 안 달음
+        if (!targetPost) return;
+        
+        // [중복 방지] 저장된 댓글에서 같은 작성자 + 같은 텍스트가 있으면 스킵
+        const isDuplicateComment = targetPost.comments.some(c => 
+            c.author.toLowerCase() === charName.toLowerCase() && 
+            c.text === commentText
+        );
+        if (isDuplicateComment) {
+            console.log('[Instagram] 중복 댓글 감지 - 스킵:', commentText.substring(0, 30));
+            return;
+        }
+        
+        // [연속 캐릭터 댓글 방지] 마지막 댓글이 유저가 아니면 스킵
+        if (targetPost.comments.length > 0) {
+            const lastComment = targetPost.comments[targetPost.comments.length - 1];
+            if (lastComment.author !== user.name) {
+                console.log('[Instagram] 연속 캐릭터 댓글 방지 - 마지막 댓글이 유저가 아님');
+                return;
+            }
+        }
+        
+        // 댓글 추가
+        targetPost.comments.push({
+            id: Date.now(),
+            author: charName,
+            authorAvatar: getContactAvatar(charName),
+            text: commentText,
+            timestamp: getRpTimestamp()
+        });
+        
+        savePosts();
+        
+        // 인스타 열려있으면 새로고침
+        if ($('.st-insta-app').length) {
+            setTimeout(() => open(), 100);
+        }
+    }
     
     // 채팅 감지로 답글 추가
     function addReplyFromChat(charName, replyText) {
@@ -2768,6 +2908,16 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // 대상 게시물 없으면 댓글 안 달음
         if (!targetPost) return;
         
+        // [중복 방지] 저장된 답글에서 같은 작성자 + 같은 텍스트가 있으면 스킵
+        const isDuplicateReply = targetPost.comments.some(c => 
+            c.author.toLowerCase() === charName.toLowerCase() && 
+            c.text === replyText
+        );
+        if (isDuplicateReply) {
+            console.log('[Instagram] 중복 답글 감지 - 스킵:', replyText.substring(0, 30));
+            return;
+        }
+        
         // 답글/댓글 추가
         targetPost.comments.push({
             id: Date.now(),
@@ -2796,7 +2946,18 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         // 이미 생성 중이면 무시
         if (isGeneratingPost) return;
         
-        // 중복 방지: 같은 캡션으로 60초 내 재생성 방지
+        // [핵심 중복 방지] 저장된 포스트에서 같은 작성자 + 같은 캡션이 있으면 스킵 (영구적!)
+        loadPosts();
+        const isDuplicatePost = posts.some(p => 
+            p.author.toLowerCase() === charName.toLowerCase() && 
+            p.caption === caption
+        );
+        if (isDuplicatePost) {
+            console.log('[Instagram] 중복 포스트 감지 (저장된 데이터) - 스킵:', caption.substring(0, 30));
+            return;
+        }
+        
+        // 추가 중복 방지: 같은 캡션으로 60초 내 재생성 방지 (race condition 방지)
         const captionKey = `${charName}:${caption.substring(0, 50)}`;
         if (recentPostCaptions.has(captionKey)) return;
         recentPostCaptions.add(captionKey);
