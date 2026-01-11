@@ -13,6 +13,8 @@ window.STPhone.Apps.Instagram = (function() {
     let posts = [];
     let isGeneratingPost = false;
     let isProcessingComments = false;  // 댓글 처리 중 플래그 (포스팅과 분리)
+    let lastPostTime = 0;  // 마지막 포스팅 시간 (중복 방지)
+    const POST_COOLDOWN = 30000;  // 30초 절대러
     
     // 무한스크롤 설정
     const POSTS_PER_PAGE = 5;
@@ -1496,28 +1498,33 @@ Example output:
             if (isGeneratingPost) {
                 console.log('[Instagram] 포스팅 생성 중, 포스팅만 스킵 (댓글은 처리됨)');
             } else {
-                const chance = settings.instagramPostChance || 15;
-                const roll = Math.random() * 100;
-                const shouldAttemptPost = roll <= chance;
-                
-                // 중복 캡션 체크
-                const captionKey = result.newPost.caption?.trim().toLowerCase();
-                const isDuplicate = captionKey && recentPostCaptions.has(captionKey);
-                
-                if (isDuplicate) {
-                    console.log('[Instagram] 중복 캡션 감지, 포스팅 스킵:', captionKey);
-                }
-                
-                if (shouldAttemptPost && result.newPost.shouldPost && !isDuplicate) {
-                    isGeneratingPost = true;  // 포스팅 시작
-                    console.log('[Instagram] 프로액티브 포스팅 생성 중...');
+                // 절대러 체크: 최근 포스팅 후 30초 내 스킵
+                const timeSinceLastPost = Date.now() - lastPostTime;
+                if (timeSinceLastPost < POST_COOLDOWN) {
+                    console.log('[Instagram] 최근 포스팅 후 30초 내 - 새 포스팅 스킵 (' + Math.round((POST_COOLDOWN - timeSinceLastPost) / 1000) + '초 남음)');
+                } else {
+                    const chance = settings.instagramPostChance || 15;
+                    const roll = Math.random() * 100;
+                    const shouldAttemptPost = roll <= chance;
                     
-                    try {
-                    // 중복 방지용 캡션 저장
-                    if (captionKey) {
-                        recentPostCaptions.add(captionKey);
-                        setTimeout(() => recentPostCaptions.delete(captionKey), 60000);
+                    // 중복 캡션 체크
+                    const captionKey = result.newPost.caption?.trim().toLowerCase();
+                    const isDuplicate = captionKey && recentPostCaptions.has(captionKey);
+                    
+                    if (isDuplicate) {
+                        console.log('[Instagram] 중복 캡션 감지, 포스팅 스킵:', captionKey);
                     }
+                    
+                    if (shouldAttemptPost && result.newPost.shouldPost && !isDuplicate) {
+                        isGeneratingPost = true;  // 포스팅 시작
+                        console.log('[Instagram] 프로액티브 포스팅 생성 중...');
+                        
+                        try {
+                        // 중복 방지용 캡션 저장
+                        if (captionKey) {
+                            recentPostCaptions.add(captionKey);
+                            setTimeout(() => recentPostCaptions.delete(captionKey), 60000);
+                        }
 
                 // 이미지 생성 (imagePrompt가 있을 때만)
                 let imageUrl = null;
@@ -1555,6 +1562,7 @@ Example output:
                 posts.unshift(newPost);
                 savePosts();
                 activityCount++;
+                lastPostTime = Date.now();  // 포스팅 시간 기록
 
                 const postType = imageUrl ? '📸 사진' : '💬 텍스트';
                 addHiddenLog(charName, `[Instagram 포스팅] ${charName}가 Instagram에 ${postType} 글을 올렸습니다: "${result.newPost.caption}"`);
@@ -1566,6 +1574,7 @@ Example output:
                         isGeneratingPost = false;  // 포스팅 완료
                     }
                 }  // shouldAttemptPost 블록 닫기
+                }  // 쿨다운 체크 블록 닫기
             }  // isGeneratingPost 체크 블록 닫기
             
             // 3. UI 새로고침 (활동이 있었으면)
@@ -3092,6 +3101,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
             
             posts.unshift(newPost);
             savePosts();
+            lastPostTime = Date.now();  // 포스팅 시간 기록 (중복 방지용)
             
             // 토스트 알림
             const postType = imageUrl ? '📸 사진' : '💬 텍스트';
