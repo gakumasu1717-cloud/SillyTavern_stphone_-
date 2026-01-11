@@ -2401,6 +2401,47 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         }
     }
 
+    // ========== 처리된 메시지 영구 저장 (localStorage) ==========
+    const PROCESSED_MSG_KEY = 'stphone_instagram_processed_msgs';
+    
+    function getProcessedMsgIds() {
+        try {
+            const chatId = getCurrentChatId();
+            const data = JSON.parse(localStorage.getItem(PROCESSED_MSG_KEY) || '{}');
+            return new Set(data[chatId] || []);
+        } catch { 
+            return new Set(); 
+        }
+    }
+    
+    function saveProcessedMsgId(msgId) {
+        try {
+            const chatId = getCurrentChatId();
+            const data = JSON.parse(localStorage.getItem(PROCESSED_MSG_KEY) || '{}');
+            const ids = new Set(data[chatId] || []);
+            ids.add(msgId);
+            // 채팅당 최근 500개만 유지
+            data[chatId] = [...ids].slice(-500);
+            // 전체 채팅 수 제한 (최근 50개 채팅만 유지)
+            const chatKeys = Object.keys(data);
+            if (chatKeys.length > 50) {
+                const oldestKey = chatKeys[0];
+                delete data[oldestKey];
+            }
+            localStorage.setItem(PROCESSED_MSG_KEY, JSON.stringify(data));
+        } catch (e) {
+            console.warn('[Instagram] 처리된 메시지 저장 실패:', e);
+        }
+    }
+    
+    function getCurrentChatId() {
+        const ctx = window.SillyTavern?.getContext?.();
+        // 캐릭터 이름 + 채팅 파일명으로 고유 ID 생성
+        const charName = ctx?.name2 || 'unknown';
+        const chatFile = ctx?.getCurrentChatId?.() || ctx?.chat?.length || 0;
+        return `${charName}_${chatFile}`;
+    }
+
     // ========== 이벤트 리스너 초기화 ==========
     let listenerRegistered = false;
     // [수정] 채팅 로드 시간을 기록 - 로드 직후 기존 메시지에 반응하지 않기 위함
@@ -2470,14 +2511,23 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                         // messageId가 숫자면 해당 인덱스 사용, 아니면 마지막 메시지 인덱스
                         const targetIndex = typeof messageId === 'number' ? messageId : c.chat.length - 1;
                         
-                        // 이미 처리한 메시지면 스킵
+                        // 이미 처리한 메시지면 스킵 (메모리)
                         if (processedMessageIndices.has(targetIndex)) {
                             console.log('[Instagram] 이미 처리된 메시지 인덱스 - 스킵:', targetIndex);
                             return;
                         }
                         
-                        // 처리됨으로 마킹
+                        // [핵심] localStorage 영구 체크 - 재접속해도 다시 파싱 안 함
+                        const persistentMsgId = `${targetIndex}_${c.chat[targetIndex]?.mes?.substring(0, 50) || ''}`;
+                        if (getProcessedMsgIds().has(persistentMsgId)) {
+                            console.log('[Instagram] 영구 저장된 메시지 - 스킵:', targetIndex);
+                            processedMessageIndices.add(targetIndex);
+                            return;
+                        }
+                        
+                        // 처리됨으로 마킹 (메모리 + localStorage)
                         processedMessageIndices.add(targetIndex);
+                        saveProcessedMsgId(persistentMsgId);
                         lastProcessedMsgId = Math.max(lastProcessedMsgId, c.chat.length);
                         
                         // [추가] 유저 메시지가 하나도 없으면 스킵 (그리팅/초기 메시지)
