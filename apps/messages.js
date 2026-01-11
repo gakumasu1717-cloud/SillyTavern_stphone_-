@@ -1043,18 +1043,22 @@ function stripInstagramTags(text) {
     cleaned = cleaned.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '');
     // [IG_REPLY]...[/IG_REPLY] 제거
     cleaned = cleaned.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '');
+    // [IG_COMMENT]...[/IG_COMMENT] 제거
+    cleaned = cleaned.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '');
     // 불완전한 태그 제거 (시작/끝만 있는 경우)
     cleaned = cleaned.replace(/\[IG_POST\][^\[]*/gi, '');
     cleaned = cleaned.replace(/[^\]]*\[\/IG_POST\]/gi, '');
     cleaned = cleaned.replace(/\[IG_REPLY\][^\[]*/gi, '');
     cleaned = cleaned.replace(/[^\]]*\[\/IG_REPLY\]/gi, '');
+    cleaned = cleaned.replace(/\[IG_COMMENT\][^\[]*/gi, '');
+    cleaned = cleaned.replace(/[^\]]*\[\/IG_COMMENT\]/gi, '');
     // 괄호 형식 제거
     cleaned = cleaned.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
     cleaned = cleaned.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
     // 레거시 패턴 제거
-    cleaned = cleaned.replace(/\[Instagram \ud3ec\uc2a4\ud305\][^\n]*/gi, '');
-    cleaned = cleaned.replace(/\[Instagram \ub2f5\uae00\][^\n]*/gi, '');
-    cleaned = cleaned.replace(/\[Instagram \ub313\uae00\][^\n]*/gi, '');
+    cleaned = cleaned.replace(/\[Instagram 포스팅\][^\n]*/gi, '');
+    cleaned = cleaned.replace(/\[Instagram 답글\][^\n]*/gi, '');
+    cleaned = cleaned.replace(/\[Instagram 댓글\][^\n]*/gi, '');
     // 연속 공백/줄바꿈 정리
     cleaned = cleaned.replace(/\n\s*\n/g, '\n').trim();
     return cleaned;
@@ -1306,6 +1310,16 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                 }
                 text = text.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
             }
+            
+            // [IG_COMMENT] 태그 처리 (전체 텍스트에서)
+            const igCommentMatch = text.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
+            if (igCommentMatch) {
+                const commentContent = igCommentMatch[1].trim();
+                if (typeof Instagram.addCommentFromChat === 'function') {
+                    Instagram.addCommentFromChat(contactName, commentContent);
+                }
+                text = text.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
+            }
         }
         
         const lines = text.split('\n').filter(l => l.trim());
@@ -1341,6 +1355,13 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                     lineText = lineText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
                     lineText = lineText.replace(/\[IG_REPLY\][^\[]*/gi, '').trim();
                     lineText = lineText.replace(/[^\]]*\[\/IG_REPLY\]/gi, '').trim();
+                }
+                
+                // [IG_COMMENT] 태그 및 불완전한 조각 제거
+                if (lineText.includes('[IG_COMMENT]') || lineText.includes('[/IG_COMMENT]')) {
+                    lineText = lineText.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
+                    lineText = lineText.replace(/\[IG_COMMENT\][^\[]*/gi, '').trim();
+                    lineText = lineText.replace(/[^\]]*\[\/IG_COMMENT\]/gi, '').trim();
                 }
                 
                 // 빈 줄이면 스킵
@@ -1381,8 +1402,12 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                     lineText = lineText.replace(/\[Instagram 답글\][^\n]*/gi, '').trim();
                 }
                 
-                // 댓글 패턴도 제거 (표시만 제거, 처리는 instagram.js에서)
+                // 댓글 패턴도 처리 (제거 + Instagram 호출)
                 if (lineText.includes('[Instagram 댓글]')) {
+                    const commentMatch = lineText.match(/\[Instagram 댓글\][^"]*"([^"]+)"/i);
+                    if (commentMatch && typeof Instagram.addCommentFromChat === 'function') {
+                        Instagram.addCommentFromChat(contactName, commentMatch[1]);
+                    }
                     lineText = lineText.replace(/\[Instagram 댓글\][^\n]*/gi, '').trim();
                 }
                 

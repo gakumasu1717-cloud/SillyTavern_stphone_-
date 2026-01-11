@@ -3085,6 +3085,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         checkProactivePost,
         createPostFromChat,
         addReplyFromChat,
+        addCommentFromChat,
+        parseInstagramFromChat,
         loadPosts: () => { loadPosts(); return posts; },
         addComment: addUserComment
     };
