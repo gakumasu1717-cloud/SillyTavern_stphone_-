@@ -1856,7 +1856,12 @@ $('#st-reset-user-translate-prompt').on('click', () => {
             photoMessagePrompt: currentSettings.photoMessagePrompt,
             translatePrompt: currentSettings.translatePrompt,
             userTranslatePrompt: currentSettings.userTranslatePrompt,
-            prefill: currentSettings.prefill
+            prefill: currentSettings.prefill,
+            // #IG_START
+            instagramPrompt: currentSettings.instagramPrompt,
+            instaAllInOnePrompt: currentSettings.instaAllInOnePrompt,
+            instaCommentPrompt: currentSettings.instaCommentPrompt
+            // #IG_END
         };
 
         // JSON 파일로 변환
@@ -1954,6 +1959,26 @@ $('#st-reset-user-translate-prompt').on('click', () => {
                     $('#st-set-prefill').val(imported.prefill);
                     importedCount++;
                 }
+                // #IG_START
+                if (imported.instagramPrompt) {
+                    currentSettings.instagramPrompt = imported.instagramPrompt;
+                    $('#st-prompt-instagram').val(imported.instagramPrompt);
+                    $('#st-prompt-instagram-tab').val(imported.instagramPrompt);
+                    importedCount++;
+                }
+                if (imported.instaAllInOnePrompt) {
+                    currentSettings.instaAllInOnePrompt = imported.instaAllInOnePrompt;
+                    $('#st-prompt-insta-allinone').val(imported.instaAllInOnePrompt);
+                    $('#st-prompt-insta-allinone-tab').val(imported.instaAllInOnePrompt);
+                    importedCount++;
+                }
+                if (imported.instaCommentPrompt) {
+                    currentSettings.instaCommentPrompt = imported.instaCommentPrompt;
+                    $('#st-prompt-insta-comment').val(imported.instaCommentPrompt);
+                    $('#st-prompt-insta-comment-tab').val(imported.instaCommentPrompt);
+                    importedCount++;
+                }
+                // #IG_END
 
                 // 저장
                 saveToStorage();
