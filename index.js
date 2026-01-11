@@ -415,10 +415,23 @@ const EXTENSION_NAME = 'ST Phone System';
                 }
             }
             
-            // 📩 패턴이 전체 메시지를 차지하면 숨김 처리
-            node.classList.add('st-phone-hidden-log');
-            node.style.display = 'none';
-            return; // 📩 패턴 처리 완료
+            // 📩 패턴을 제거한 후 남은 텍스트 확인
+            let remainingText = rawText
+                .replace(/\[📩\s*[^\]]+\]:\s*[^\n\[]*/g, '')  // 📩 패턴 제거
+                .replace(/\[Instagram 포스팅\][^\n]*/gi, '')  // 인스타 레거시 패턴 제거
+                .replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '')  // IG_POST 태그 제거
+                .replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '')  // IG_REPLY 태그 제거
+                .replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '')  // IG_COMMENT 태그 제거
+                .replace(/\(Photo:\s*[^)]*\)/gi, '')  // Photo 패턴 제거
+                .trim();
+            
+            // 남은 텍스트가 없거나 공백만 있으면 숨김
+            if (!remainingText || remainingText.length < 5) {
+                node.classList.add('st-phone-hidden-log');
+                node.style.display = 'none';
+                return; // 📩 패턴 처리 완료
+            }
+            // 남은 텍스트가 있으면 계속 진행 (일반 메시지로 표시)
         }
         // #IG_END
 
