@@ -738,16 +738,16 @@ function saveToStorage() {
                         <div class="st-section">
                             <div class="st-row">
                                 <div>
-                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>인스타그램</span>
-                                    <div class="st-desc">캐릭터가 자동으로 Instagram에 포스팅</div>
+                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>인스타그램 자동 포스팅</span>
+                                    <div class="st-desc">AI 캐릭터가 자동으로 Instagram에 포스팅 (끄면 [IG_POST] 태그도 비활성화)</div>
                                 </div>
                                 <input type="checkbox" class="st-switch" id="st-set-insta-post-enabled">
                             </div>
 
-                            <div id="st-insta-options" style="display:none;">
+                            <div id="st-insta-options">
                                 <div class="st-row-block">
-                                    <span class="st-label"><i class="fa-solid fa-dice" style="margin-right:6px;"></i>포스팅 확률</span>
-                                    <span class="st-desc">AI 응답마다 Instagram 포스팅 확률</span>
+                                    <span class="st-label"><i class="fa-solid fa-dice" style="margin-right:6px;"></i>선제 포스팅 확률</span>
+                                    <span class="st-desc">AI 응답마다 자동 포스팅 확률 (0% = 댓글만 처리)</span>
                                     <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
                                         <input type="range" id="st-set-insta-post-chance" min="0" max="100" value="15" style="flex:1;">
                                         <span id="st-insta-post-chance-display" style="min-width:40px; text-align:right;">15%</span>

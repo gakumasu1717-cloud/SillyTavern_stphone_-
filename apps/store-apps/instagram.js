@@ -1077,18 +1077,20 @@ Output ONLY the comment text, no quotes.`
         // 3. 사진 모드 힌트 (강제성 제거, 참고용)
         let photoTypeHint = '';
         if (photoType === 'selfie') {
-            photoTypeHint = `Selfie perspective (Handheld camera, close-up)`;
+            photoTypeHint = `Selfie perspective (Handheld camera, upper body or medium shot preferred)`;
         } else if (photoType === 'group') {
-            photoTypeHint = `Group shot (Both subjects visible)`;
+            photoTypeHint = `Group shot (Both subjects visible, medium to full body)`;
         } else if (photoType === 'scenery') {
             photoTypeHint = `Scenery/Object (Focus on environment, minimal human focus)`;
         } else {
-            photoTypeHint = `General shot`;
+            photoTypeHint = `General shot (medium shot preferred)`;
         }
 
         // 4. 핵심: AI 판단 로직이 담긴 프롬프트
         const aiInstruction = `[System] You are an intelligent prompt generator for a photo simulation.
 Your goal is to generate a Stable Diffusion prompt inside a <pic prompt="..."> tag based on the user's input text.
+
+IMPORTANT: Avoid extreme close-ups. Prefer medium shots, upper body shots, or cowboy shots for better composition.
 
 ${visualData}
 

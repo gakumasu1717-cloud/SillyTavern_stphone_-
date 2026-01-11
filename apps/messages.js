@@ -3058,14 +3058,16 @@ If you want to ignore, reply ONLY with: [IGNORE]`;
                 }
             } catch (bankErr) {}
 
-            // #IG_START - Instagram 프롬프트 (설치된 경우에만)
+            // #IG_START - Instagram 프롬프트 (설치 + 활성화된 경우에만)
             let instagramPrompt = '';
             try {
                 const Store = window.STPhone?.Apps?.Store;
-                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
-                    // Settings에서 프롬프트 가져오기
-                    const Settings = window.STPhone?.Apps?.Settings;
-                    const savedPrompt = Settings?.getSettings?.()?.instagramPrompt;
+                const Settings = window.STPhone?.Apps?.Settings;
+                const currentSettings = Settings?.getSettings?.() || {};
+                
+                // 인스타그램 앱 설치됨 + 자동 포스팅 활성화된 경우에만 프롬프트 주입
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram') && currentSettings.instagramPostEnabled !== false) {
+                    const savedPrompt = currentSettings.instagramPrompt;
                     if (savedPrompt) {
                         instagramPrompt = savedPrompt;
                     } else {
