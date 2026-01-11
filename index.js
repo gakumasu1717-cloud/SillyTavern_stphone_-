@@ -431,7 +431,20 @@ const EXTENSION_NAME = 'ST Phone System';
                 node.style.display = 'none';
                 return; // 📩 패턴 처리 완료
             }
-            // 남은 텍스트가 있으면 계속 진행 (일반 메시지로 표시)
+            
+            // [FIX] 남은 텍스트가 있으면 DOM에서 태그들만 제거하고 나머지는 보여줌
+            const textDiv = node.querySelector('.mes_text');
+            if (textDiv) {
+                let cleanHtml = textDiv.innerHTML
+                    .replace(/\[📩\s*[^\]]+\]:\s*[^\n\[]*/g, '')  // 📩 패턴 제거
+                    .replace(/\[Instagram 포스팅\][^\n]*/gi, '')  // 인스타 레거시 패턴 제거
+                    .replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '')  // IG_POST 태그 제거
+                    .replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '')  // IG_REPLY 태그 제거
+                    .replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '')  // IG_COMMENT 태그 제거
+                    .replace(/\(Photo:\s*[^)]*\)/gi, '')  // Photo 패턴 제거
+                    .trim();
+                textDiv.innerHTML = cleanHtml;
+            }
         }
         // #IG_END
 
