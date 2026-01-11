@@ -1239,6 +1239,7 @@ User's Input: "${userInput}"
                             postId: post.id,
                             type: 'reply',
                             postCaption: post.caption?.substring(0, 50) || '',
+                            imagePrompt: post.imagePrompt || '', // 이미지 설명 추가
                             userComment: lastUserComment.text?.substring(0, 80) || '',
                             commentId: lastUserComment.id
                         });
@@ -1259,6 +1260,7 @@ User's Input: "${userInput}"
                     postId: post.id,
                     type: 'comment',
                     postCaption: post.caption?.substring(0, 100) || '',
+                    imagePrompt: post.imagePrompt || '', // 이미지 설명 추가
                     userComment: null,
                     commentId: null
                 });
@@ -1298,21 +1300,23 @@ User's Input: "${userInput}"
         loadPosts();
         const pendingComments = getPendingComments(charName);
         
-        // Pending Comments 섹션 생성
+        // Pending Comments 섹션 생성 (이미지 정보 포함)
         let pendingCommentsSection = '';
         if (pendingComments.length > 0) {
             const commentsList = pendingComments.map((c, idx) => {
+                const imageInfo = c.imagePrompt ? ` [Image: ${c.imagePrompt.substring(0, 60)}...]` : '';
                 if (c.type === 'reply') {
-                    return `  ${idx + 1}. [Reply Needed] Post: "${c.postCaption}" / User's comment: "${c.userComment}"`;
+                    return `  ${idx + 1}. [Reply Needed] Post: "${c.postCaption}"${imageInfo} / User's comment: "${c.userComment}"`;
                 } else {
-                    return `  ${idx + 1}. [Comment Needed] User's post: "${c.postCaption}"`;
+                    return `  ${idx + 1}. [Comment Needed] User's post: "${c.postCaption}"${imageInfo}`;
                 }
             }).join('\n');
             
             pendingCommentsSection = `
 
 ### Pending Comments (${pendingComments.length} items)
-${commentsList}`;
+${commentsList}
+Note: [Image: ...] describes what the photo shows. Consider the image content when writing comments.`;
         }
         
         // 통합 프롬프트
@@ -1477,18 +1481,22 @@ Example output:
 
                 // 이미지 생성 (imagePrompt가 있을 때만)
                 let imageUrl = null;
+                let savedDetailedPrompt = '';
                 
                 if (result.newPost.imagePrompt && result.newPost.imagePrompt.trim()) {
                     try {
                         const photoType = detectPhotoType(result.newPost.imagePrompt, result.newPost.caption);
-                        const detailedPrompt = await generateDetailedPrompt(result.newPost.imagePrompt, charName, photoType);
-                        imageUrl = await generateImage(detailedPrompt);
+                        savedDetailedPrompt = await generateDetailedPrompt(result.newPost.imagePrompt, charName, photoType);
+                        imageUrl = await generateImage(savedDetailedPrompt);
                     } catch (e) {
                         console.warn('[Instagram] 이미지 생성 실패:', e);
+                        if (window.toastr) {
+                            toastr.warning('이미지 생성에 실패했습니다. 텍스트만 포스팅됩니다.', 'Instagram');
+                        }
                     }
                 }
 
-                // 게시물 추가
+                // 게시물 추가 (imagePrompt 포함)
                 loadPosts();
                 const newPost = {
                     id: Date.now(),
@@ -1496,6 +1504,7 @@ Example output:
                     authorAvatar: getContactAvatar(charName),
                     imageUrl: imageUrl || '',
                     caption: result.newPost.caption,
+                    imagePrompt: savedDetailedPrompt || result.newPost.imagePrompt, // AI가 이미지 내용 인식용
                     timestamp: getRpTimestamp(),
                     likes: Math.floor(Math.random() * 50) + 10,
                     likedByUser: false,
@@ -1569,15 +1578,25 @@ Example output:
                 posterName,
                 photoType
             );
-            const imageUrl = await generateImage(detailedPrompt);
+            
+            let imageUrl = null;
+            try {
+                imageUrl = await generateImage(detailedPrompt);
+            } catch (e) {
+                console.warn('[Instagram] 이미지 생성 실패:', e);
+                if (window.toastr) {
+                    toastr.warning('이미지 생성에 실패했습니다. 텍스트만 포스팅됩니다.', 'Instagram');
+                }
+            }
 
-            // 포스트 저장
+            // 포스트 저장 (imagePrompt 포함)
             const newPost = {
                 id: Date.now(),
                 author: posterName,
                 authorAvatar: getContactAvatar(posterName),
                 imageUrl: imageUrl || '',
                 caption: caption.trim(),
+                imagePrompt: detailedPrompt, // AI가 이미지 내용 인식용
                 timestamp: getRpTimestamp(),
                 likes: Math.floor(Math.random() * 50) + 10,
                 likedByUser: false,
@@ -2161,6 +2180,7 @@ ${commentTasks}
             const $preview = $('#st-insta-create-preview');
             
             let imageUrl = null;
+            let savedImagePrompt = ''; // 이미지 프롬프트 저장용
 
             try {
                 // 프롬프트가 있으면 이미지 생성
@@ -2170,6 +2190,7 @@ ${commentTasks}
 
                     // AI 프롬프트 상세화 후 이미지 생성 (카메라/메신저와 동일)
                     const detailedPrompt = await generateDetailedPrompt(prompt, user.name);
+                    savedImagePrompt = detailedPrompt; // 프롬프트 저장
                     imageUrl = await generateImage(detailedPrompt);
 
                     if (!imageUrl) {
@@ -2183,13 +2204,14 @@ ${commentTasks}
                     $btn.addClass('disabled').text('게시 중...');
                 }
 
-                // 포스트 추가
+                // 포스트 추가 (imagePrompt 포함)
                 const newPost = {
                     id: Date.now(),
                     author: user.name,
                     authorAvatar: user.avatar,
                     imageUrl: imageUrl || '',
                     caption: caption,
+                    imagePrompt: savedImagePrompt, // AI가 이미지 내용을 인식할 수 있도록 저장
                     timestamp: getRpTimestamp(),
                     likes: 0,
                     likedByUser: false,
@@ -2201,8 +2223,9 @@ ${commentTasks}
                 posts.unshift(newPost);
                 savePosts();
 
-                // 히든 로그
-                addHiddenLog(user.name, `[Instagram 포스팅] ${user.name}가 Instagram에 게시물을 올렸습니다: "${caption}"`);
+                // 히든 로그 (이미지 정보 포함)
+                const imageInfo = savedImagePrompt ? ` [Image: ${savedImagePrompt.substring(0, 50)}...]` : '';
+                addHiddenLog(user.name, `[Instagram 포스팅] ${user.name}가 Instagram에 게시물을 올렸습니다: "${caption}"${imageInfo}`);
 
                 toastr.success('게시물이 업로드되었습니다!');
                 
@@ -2784,21 +2807,24 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         try {
             // 이미지 생성 시도 (실패해도 텍스트 전용 포스팅 가능)
             let imageUrl = null;
+            let savedImagePrompt = '';
             
             try {
                 const photoType = detectPhotoType(caption, caption);
-                const detailedPrompt = await generateDetailedPrompt(
+                savedImagePrompt = await generateDetailedPrompt(
                     `${charName} Instagram photo, ${caption}`,
                     charName,
                     photoType
                 );
-                imageUrl = await generateImage(detailedPrompt);
+                imageUrl = await generateImage(savedImagePrompt);
             } catch (e) {
                 console.warn('[Instagram] 이미지 생성 실패, 텍스트만 포스팅:', e);
-                // 이미지 없어도 포스팅 진행
+                if (window.toastr) {
+                    toastr.warning('이미지 생성에 실패했습니다. 텍스트만 포스팅됩니다.', 'Instagram');
+                }
             }
             
-            // 포스트 저장
+            // 포스트 저장 (imagePrompt 포함)
             loadPosts();
             const newPost = {
                 id: Date.now(),
@@ -2806,6 +2832,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
                 authorAvatar: getContactAvatar(charName),
                 imageUrl: imageUrl || '', // 텍스트 전용은 빈 문자열
                 caption: caption,
+                imagePrompt: savedImagePrompt, // AI가 이미지 내용 인식용
                 timestamp: getRpTimestamp(),
                 likes: Math.floor(Math.random() * 50) + 10,
                 likedByUser: false,
