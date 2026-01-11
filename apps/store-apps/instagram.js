@@ -992,22 +992,24 @@ Output ONLY the comment text, no quotes.`
 
     async function generateDetailedPrompt(userInput, characterName, photoType = 'selfie') {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-        
-        // 기본 프롬프트 템플릿 (짧고 간결한 해시태그/사진 종류 구분)
+
+        // 기본 프롬프트
         const defaultCameraPrompt = `[System] You are an expert Stable Diffusion prompt generator for Instagram photos.
-Output ONLY a single <pic prompt="..."> tag, nothing else.
-NO hashtags, NO Instagram caption text, ONLY visual tags.`;
+Output ONLY a single <pic prompt="..."> tag. NO hashtags, NO caption text.`;
 
         const cameraPromptTemplate = settings.cameraPrompt || defaultCameraPrompt;
 
-        const contact = getContactByName(characterName);
-        const visualTags = contact?.tags || '';
-
-        // Visual Tag Library 구성 (messages.js 방식 참조)
+        // 사용자 및 캐릭터 정보 가져오기
         const user = getUserInfo();
-        const userTags = settings.userTags || '';
+        const userName = user.name || 'User';
+        const userTags = settings.userTags || 'average appearance';
+
+        const contact = getContactByName(characterName);
+        const charTags = contact?.tags || '';
+
+        // Visual Tag Library 구성
         let visualLibrary = `### Visual Tag Library\n`;
-        visualLibrary += `1. [${user.name} (User)]: ${userTags}\n`;
+        visualLibrary += `1. [${userName} (User)]: ${userTags}\n`; // 사용자 태그 명시
 
         const allContacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
         let lineNumber = 2;
@@ -1017,32 +1019,39 @@ NO hashtags, NO Instagram caption text, ONLY visual tags.`;
                 lineNumber++;
             }
         }
-        
-        // 사진 종류에 따른 힌트
+
+        // [수정됨] 사진 종류 힌트: 특정 대상을 강제하지 않고 모드만 설명
         let photoTypeHint = '';
         if (photoType === 'selfie') {
-            photoTypeHint = `Mode: Selfie/Single person (Focus on ${characterName}, camera angle: selfie perspective)`;
+            photoTypeHint = `Mode: Selfie/Portrait (Focus on the main subject usually one person, camera angle: selfie or close-up)`;
         } else if (photoType === 'group') {
-            photoTypeHint = `Mode: Group shot (Include multiple people if mentioned)`;
+            photoTypeHint = `Mode: Group shot (Include multiple people)`;
         } else if (photoType === 'scenery') {
-            photoTypeHint = `Mode: Scenery/Object shot (No people focus, environment/object main subject)`;
+            photoTypeHint = `Mode: Scenery/Object (No humans, focus on environment)`;
         } else {
-            photoTypeHint = `Mode: General Instagram photo (Determine subject from context)`;
+            photoTypeHint = `Mode: General Photo (Determine subject from context)`;
         }
 
+        // [수정됨] AI 지시사항: 주체 식별 로직 강화
         const aiInstruction = `${cameraPromptTemplate}
 
 ${visualLibrary}
 
-### Photo Type
-${photoTypeHint}
+### Current Context
+- User Name: ${userName}
+- Character Name: ${characterName}
+- Photo Mode: ${photoTypeHint}
 
 ### Task
-User's request: "${userInput}"
-1. Identify who appears in the photo from the request.
-2. Copy their Visual Tags from the Library above.
-3. Add scene/mood/lighting tags based on the caption.
-4. Output as comma-separated tags ONLY. No hashtags (#).
+User's Request (Caption/Context): "${userInput}"
+
+1. **Identify the Subject**: Analyze the request to decide who is in the photo.
+   - If the User implies themselves (e.g., "my outfit", "me", "feeling cute", "내 옷", "나", "셀카"), use [${userName}]'s tags.
+   - If the User refers to the Character (e.g., "look at you", "your smile", "너", "네 모습"), use [${characterName}]'s tags.
+   - If both are present, combine tags.
+2. **Fetch Visual Tags**: Copy the corresponding visual tags from the 'Visual Tag Library' above.
+3. **Add Details**: Add scene, lighting, and mood tags based on the context.
+4. **Output**: Generate comma-separated tags inside the XML tag.
 
 Example output format:
 <pic prompt="1girl, solo, long black hair, blue eyes, casual outfit, selfie, phone in hand, indoor, soft lighting">`;
@@ -1051,7 +1060,7 @@ Example output format:
             const result = await generateWithAI(aiInstruction, 200);
             const regex = /<pic[^>]*\sprompt="([^"]*)"[^>]*?>/i;
             const match = String(result || '').match(regex);
-            
+
             if (match && match[1]?.trim()) {
                 return match[1];
             }
