@@ -572,7 +572,11 @@ Output ONLY the comment text, no quotes.`
             .replace(/&#39;/g, "'")
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>');
+            .replace(/&gt;/g, '>')
+            .replace(/&#91;/g, '[')
+            .replace(/&#93;/g, ']')
+            .replace(/&lbrack;/g, '[')
+            .replace(/&rbrack;/g, ']');
         return decoded;
     }
 
@@ -1002,6 +1006,12 @@ Output ONLY the comment text, no quotes.`
         const contact = getContactByName(characterName);
         // Character 태그가 없으면 이름으로 대체
         const charTags = contact?.tags || `${characterName}, average appearance`;
+        
+        console.log('[Instagram] generateDetailedPrompt 호출:', {
+            userName, userTags: userTags?.substring(0, 50),
+            characterName, charTags: charTags?.substring(0, 50),
+            photoType, userInput: userInput?.substring(0, 50)
+        });
 
         // 2. AI에게 제공할 "Visual Data Block" 구성
         // 단순히 나열하지 않고, 명확한 변수명(Variable)처럼 제공
@@ -1058,8 +1068,9 @@ User's Input: "${userInput}"
             // AI에게 판단 요청
             const result = await generateWithAI(aiInstruction, 250);
 
-            // 정규식으로 태그 추출
-            const regex = /<pic[^>]*\sprompt="([^"]*)"[^>]*?>/i;
+            // 정규식으로 태그 추출 (줄바꿈, 공백, 따옴표 유연성 개선)
+            // AI가 줄바꿈을 넣거나 작은따옴표를 사용할 수 있으므로 유연하게 처리
+            const regex = /<pic[^>]*prompt=["']([^"']*)["'][^>]*>/i;
             const match = String(result || '').match(regex);
 
             if (match && match[1]?.trim()) {
@@ -2309,7 +2320,8 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         const textDiv = msgNode.querySelector('.mes_text');
         if (!textDiv) return;
         
-        let html = textDiv.innerHTML;
+        // HTML 엔티티 디코딩 후 처리
+        let html = decodeHtmlEntities(textDiv.innerHTML);
         let modified = false;
         
         // 새 고정 형식
@@ -2401,6 +2413,7 @@ Write a short reply comment (1 sentence). Output ONLY the reply text, no quotes.
         
         if (modified) {
             textDiv.innerHTML = html.trim();
+            msgNode.dataset.instagramCleaned = "true";
         }
         msgNode.dataset.instagramChecked = "true";
     }
