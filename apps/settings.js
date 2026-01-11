@@ -193,12 +193,9 @@ Example: "A blurry photo of a cute stray cat {{char}} found"
 
 Keep it under 50 words. Just the description, nothing else.`,
 
-        // ========== [사용자 추가] 인스타그램 설정 ==========
-        instagramPostEnabled: true,
-        instagramPostChance: 15,
-        
-        // 인스타그램 채팅 주입 프롬프트
-        instagramPrompt: `### 📸 Instagram Posting
+        // #IG_START - 인스타그램 설정
+        // [인스타그램 포스팅 프롬프트 - 채팅 주입용]
+        instagramPrompt: \`### 📸 Instagram Posting
 To post on Instagram, append this tag at the END of your message:
 [IG_POST]Your caption here in Korean[/IG_POST]
 
@@ -208,10 +205,13 @@ Rules:
 - Only post when it makes sense (sharing moments, achievements, etc.)
 - Caption should be casual and short (1-2 sentences, Korean)
 - Do NOT include hashtags
-- Do NOT post every message - only when naturally appropriate`,
+- Do NOT post every message - only when naturally appropriate\`,
 
+        instagramPostEnabled: true,
+        instagramPostChance: 15,
+        
         // 통합 프롬프트 (상황판단 + 캡션 + 이미지프롬프트 한번에)
-        instaAllInOnePrompt: `You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
+        instaAllInOnePrompt: \`You are {{charName}}. Based on the recent chat context, decide if you would post on Instagram right now.
 
 ### Current Date
 {{currentDate}}{{eventsInfo}}
@@ -233,15 +233,15 @@ Respond in JSON format ONLY:
     "imagePrompt": "detailed SD prompt in English: subject, pose, setting, lighting, style tags"
 }
 
-If the situation is not suitable for posting, set shouldPost to false.`,
+If the situation is not suitable for posting, set shouldPost to false.\`,
 
-        instaCommentPrompt: `You are {{char}} commenting on {{postAuthor}}'s Instagram post.
+        instaCommentPrompt: \`You are {{char}} commenting on {{postAuthor}}'s Instagram post.
 
 Post caption: "{{postCaption}}"
 
 Write a short, natural comment (1 sentence) that fits your personality.
-Output ONLY the comment text, no quotes.`
-        // ========== [사용자 추가 끝] ==========
+Output ONLY the comment text, no quotes.\`
+        // #IG_END
     };
 
     let currentSettings = { ...defaultSettings };
@@ -734,62 +734,46 @@ function saveToStorage() {
                             </div>
                         </div>
 
-                        <!-- ========== [사용자 추가] 📸 인스타그램 설정 ========== -->
+                        <!-- #IG_START - Instagram 설정 섹션 -->
                         <div class="st-section">
-                            <div class="st-row-block">
-                                <span class="st-label" style="font-size: 16px; margin-bottom: 10px;"><i class="fa-brands fa-instagram" style="margin-right:8px; color: #E1306C;"></i>인스타그램 설정</span>
-                            </div>
                             <div class="st-row">
                                 <div>
-                                    <span class="st-label"><i class="fa-solid fa-camera" style="margin-right:6px;"></i>자동 포스팅</span>
-                                    <div class="st-desc">AI 캐릭터가 자동으로 인스타그램에 포스팅</div>
+                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>인스타그램</span>
+                                    <div class="st-desc">캐릭터가 자동으로 Instagram에 포스팅</div>
                                 </div>
                                 <input type="checkbox" class="st-switch" id="st-set-insta-post-enabled">
                             </div>
-                            <div id="st-insta-options">
+
+                            <div id="st-insta-options" style="display:none;">
                                 <div class="st-row-block">
                                     <span class="st-label"><i class="fa-solid fa-dice" style="margin-right:6px;"></i>포스팅 확률</span>
-                                    <span class="st-desc">AI 응답마다 인스타그램 포스팅 확인 확률</span>
+                                    <span class="st-desc">AI 응답마다 Instagram 포스팅 확률</span>
                                     <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-                                        <input type="range" id="st-set-insta-post-chance" min="1" max="100" value="15" style="flex:1;">
+                                        <input type="range" id="st-set-insta-post-chance" min="0" max="100" value="15" style="flex:1;">
                                         <span id="st-insta-post-chance-display" style="min-width:40px; text-align:right;">15%</span>
                                     </div>
                                 </div>
+                                <div class="st-row-block">
+                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>채팅 주입 프롬프트</span>
+                                    <span class="st-desc">AI가 Instagram 태그를 사용하도록 안내</span>
+                                    <textarea class="st-textarea mono" id="st-prompt-instagram" rows="8"></textarea>
+                                    <button class="st-btn-small" id="st-reset-instagram-prompt">기본값</button>
+                                </div>
+                                <div class="st-row-block">
+                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>통합 게시물 프롬프트</span>
+                                    <span class="st-desc">프로액티브 포스팅 시 상황 판단용</span>
+                                    <textarea class="st-textarea mono" id="st-prompt-insta-allinone" rows="8"></textarea>
+                                    <button class="st-btn-small" id="st-reset-insta-allinone-prompt">기본값</button>
+                                </div>
+                                <div class="st-row-block">
+                                    <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>댓글 생성 프롬프트</span>
+                                    <span class="st-desc">캐릭터 댓글 작성 시 사용</span>
+                                    <textarea class="st-textarea mono" id="st-prompt-insta-comment" rows="6"></textarea>
+                                    <button class="st-btn-small" id="st-reset-insta-comment-prompt">기본값</button>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- 인스타그램 채팅 주입 프롬프트 -->
-                        <div class="st-section">
-                            <div class="st-row-block">
-                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>채팅 주입 프롬프트</span>
-                                <span class="st-desc">SMS/채팅 중 인스타그램 포스팅 유도 프롬프트 (Store 설치 시 자동 주입)</span>
-                                <textarea class="st-textarea mono" id="st-prompt-instagram" rows="8"></textarea>
-                                <button class="st-btn-small" id="st-reset-instagram-prompt">기본값</button>
-                            </div>
-                        </div>
-
-                        <!-- 인스타그램 통합 프롬프트 (상황판단+캡션+이미지프롬프트) -->
-                        <div class="st-section">
-                            <div class="st-row-block">
-                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>통합 게시물 프롬프트</span>
-                                <span class="st-desc">포스팅 여부 + 캡션 + 이미지 프롬프트를 한번에 생성</span>
-                                <span class="st-desc" style="color:#007aff;">변수: {{context}}, {{char}}, {{personality}}, {{visualTags}}</span>
-                                <textarea class="st-textarea mono" id="st-prompt-insta-all-in-one" rows="10"></textarea>
-                                <button class="st-btn-small" id="st-reset-insta-all-in-one">기본값</button>
-                            </div>
-                        </div>
-
-                        <!-- 인스타그램 댓글 생성 프롬프트 -->
-                        <div class="st-section">
-                            <div class="st-row-block">
-                                <span class="st-label"><i class="fa-brands fa-instagram" style="margin-right:6px; color: #E1306C;"></i>댓글 생성 프롬프트</span>
-                                <span class="st-desc">캐릭터가 댓글을 작성할 때 사용</span>
-                                <span class="st-desc" style="color:#007aff;">변수: {{char}}, {{postAuthor}}, {{postCaption}}</span>
-                                <textarea class="st-textarea mono" id="st-prompt-insta-comment" rows="6"></textarea>
-                                <button class="st-btn-small" id="st-reset-insta-comment">기본값</button>
-                            </div>
-                        </div>
-                        <!-- ========== [사용자 추가 끝] ========== -->
+                        <!-- #IG_END -->
 
                         <div class="st-section">
                             <div class="st-row">
@@ -1264,19 +1248,19 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
             $('#st-airdrop-options').show();
         }
 
-        // ========== [사용자 추가] 인스타그램 설정 로드 ==========
+        // #IG_START - Instagram 설정 로드
         $('#st-set-insta-post-enabled').prop('checked', currentSettings.instagramPostEnabled !== false);
         $('#st-set-insta-post-chance').val(currentSettings.instagramPostChance || 15);
         $('#st-insta-post-chance-display').text((currentSettings.instagramPostChance || 15) + '%');
-        $('#st-prompt-instagram').val(currentSettings.instagramPrompt || defaultSettings.instagramPrompt);
-        $('#st-prompt-insta-all-in-one').val(currentSettings.instaAllInOnePrompt || defaultSettings.instaAllInOnePrompt);
-        $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt || defaultSettings.instaCommentPrompt);
-        if (currentSettings.instagramPostEnabled !== false) {
-            $('#st-insta-options').show();
-        } else {
+        if (currentSettings.instagramPostEnabled === false) {
             $('#st-insta-options').hide();
+        } else {
+            $('#st-insta-options').show();
         }
-        // ========== [사용자 추가 끝] ==========
+        $('#st-prompt-instagram').val(currentSettings.instagramPrompt || defaultSettings.instagramPrompt);
+        $('#st-prompt-insta-allinone').val(currentSettings.instaAllInOnePrompt || defaultSettings.instaAllInOnePrompt);
+        $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt || defaultSettings.instaCommentPrompt);
+        // #IG_END
 
         $('#st-set-translate').prop('checked', currentSettings.translateEnabled);
         $('#st-set-translate-mode').val(currentSettings.translateDisplayMode || 'both');
@@ -1588,7 +1572,7 @@ $('#st-set-sms-persona').on('input', function() { currentSettings.smsPersona = $
             }
         });
 
-        // ========== [사용자 추가] 인스타그램 설정 이벤트 핸들러 ==========
+// #IG_START - Instagram 설정 이벤트 핸들러
         $('#st-set-insta-post-enabled').on('change', function() {
             currentSettings.instagramPostEnabled = $(this).is(':checked');
             if (currentSettings.instagramPostEnabled) {
@@ -1608,20 +1592,20 @@ $('#st-set-sms-persona').on('input', function() { currentSettings.smsPersona = $
             saveToStorage();
         });
         $('#st-reset-instagram-prompt').on('click', () => {
-            if(confirm('인스타그램 채팅 주입 프롬프트를 기본값으로 되돌릴까요?')) {
+            if(confirm('인스타그램 프롬프트를 기본값으로 되돌릴까요?')) {
                 currentSettings.instagramPrompt = defaultSettings.instagramPrompt;
                 $('#st-prompt-instagram').val(currentSettings.instagramPrompt);
                 saveToStorage();
             }
         });
-        $('#st-prompt-insta-all-in-one').on('input', function() {
+        $('#st-prompt-insta-allinone').on('input', function() {
             currentSettings.instaAllInOnePrompt = $(this).val();
             saveToStorage();
         });
-        $('#st-reset-insta-all-in-one').on('click', () => {
-            if(confirm('통합 게시물 프롬프트를 기본값으로 되돌릴까요?')) {
+        $('#st-reset-insta-allinone-prompt').on('click', () => {
+            if(confirm('인스타그램 올인원 프롬프트를 기본값으로 되돌릴까요?')) {
                 currentSettings.instaAllInOnePrompt = defaultSettings.instaAllInOnePrompt;
-                $('#st-prompt-insta-all-in-one').val(currentSettings.instaAllInOnePrompt);
+                $('#st-prompt-insta-allinone').val(currentSettings.instaAllInOnePrompt);
                 saveToStorage();
             }
         });
@@ -1629,14 +1613,14 @@ $('#st-set-sms-persona').on('input', function() { currentSettings.smsPersona = $
             currentSettings.instaCommentPrompt = $(this).val();
             saveToStorage();
         });
-        $('#st-reset-insta-comment').on('click', () => {
-            if(confirm('댓글 생성 프롬프트를 기본값으로 되돌릴까요?')) {
+        $('#st-reset-insta-comment-prompt').on('click', () => {
+            if(confirm('인스타그램 댓글 프롬프트를 기본값으로 되돌릴까요?')) {
                 currentSettings.instaCommentPrompt = defaultSettings.instaCommentPrompt;
                 $('#st-prompt-insta-comment').val(currentSettings.instaCommentPrompt);
                 saveToStorage();
             }
         });
-        // ========== [사용자 추가 끝] ==========
+// #IG_END
 
 // 번역 설정 이벤트
         $('#st-set-translate').on('change', function() {

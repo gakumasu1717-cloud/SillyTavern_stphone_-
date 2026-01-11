@@ -52,9 +52,9 @@ const EXTENSION_NAME = 'ST Phone System';
             await loadModule('apps/store-apps/theme.js');
             await loadModule('apps/store-apps/bank.js');
             await loadModule('apps/store-apps/streaming.js');
-            // ========== [사용자 추가] Instagram 앱 로드 ==========
+            // #IG_START - Instagram 앱 모듈 로드
             await loadModule('apps/store-apps/instagram.js');
-            // ========== [사용자 추가 끝] ==========
+            // #IG_END
 
 
 
@@ -151,9 +151,15 @@ const EXTENSION_NAME = 'ST Phone System';
     function applyHideLogicToAll() {
         const messages = document.querySelectorAll('.mes');
         messages.forEach(node => {
-            hideSystemLogs(node); // 이미 있는 메시지 숨기기
+            // #IG_START - 기존 메시지는 Instagram 포스트 생성 안 함
+            hideSystemLogs(node, false);
+            // #IG_END
         });
     }
+
+    // #IG_START - 채팅 로드 시간 추적 (Instagram 중복 파싱 방지)
+    let chatLoadedTime = 0;
+    // #IG_END
 
     // 감시자 함수 정의 (Observer)
     function setupChatObserver() {
@@ -164,6 +170,10 @@ const EXTENSION_NAME = 'ST Phone System';
             return;
         }
 
+        // #IG_START - 채팅 로드 시간 기록
+        chatLoadedTime = Date.now();
+        // #IG_END
+
         // 1. [핵심] 챗이 로드되자마자 현재 화면에 있는 로그들을 싹 검사해서 숨김
         applyHideLogicToAll();
 
@@ -173,9 +183,14 @@ const EXTENSION_NAME = 'ST Phone System';
                 // 노드가 추가될 때 (새 메시지, 혹은 채팅 로드)
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1 && node.classList.contains('mes')) {
-                        // 순서 중요: 먼저 숨길 건지 판단하고 -> 그 다음 폰과 동기화
-                        hideSystemLogs(node);
-                        processSync(node);
+                        // #IG_START - 채팅 로드 후 2초가 지났는지 확인 (진짜 새 메시지 판별)
+                        const isReallyNewMessage = (Date.now() - chatLoadedTime) > 2000;
+                        hideSystemLogs(node, isReallyNewMessage);
+                        // 진짜 새 메시지일 때만 processSync (그리팅 파싱 방지)
+                        if (isReallyNewMessage) {
+                            processSync(node);
+                        }
+                        // #IG_END
                     }
                 });
             });
@@ -183,46 +198,45 @@ const EXTENSION_NAME = 'ST Phone System';
 
         observer.observe(target, { childList: true, subtree: true });
         console.log(`[${EXTENSION_NAME}] Chat Observer & Auto-Hider Started.`);
+
+        // #IG_START - 채팅 변경 이벤트 감지하여 chatLoadedTime 갱신
+        if (window.SillyTavern?.getContext) {
+            const ctx = window.SillyTavern.getContext();
+            if (ctx.eventSource) {
+                ctx.eventSource.on('chatLoaded', () => {
+                    chatLoadedTime = Date.now();
+                    console.log('[STPhone] Chat loaded, resetting timer');
+                });
+            }
+        }
+        // #IG_END
     }
 
     // [신규 기능] 폰 로그인지 검사하고 숨겨주는 함수
-    function hideSystemLogs(node) {
+    // #IG_START - isNewMessage 파라미터 추가 (Instagram 포스트 생성 여부 결정)
+    function hideSystemLogs(node, isNewMessage = false) {
+    // #IG_END
         // 이미 처리된 건 스킵
         if (node.classList.contains('st-phone-hidden-log')) return;
-        if (node.classList.contains('st-phone-log-processed')) return;
 
         const textDiv = node.querySelector('.mes_text');
         if (!textDiv) return;
 
+        const originalHtml = textDiv.innerHTML;
+
+        // #IG_START - Instagram 태그를 DOM에서 제거 (표시 안 되게)
+        // Instagram 포스트 생성은 messages.js에서 담당하므로 여기서는 숨기기만
+        const cleanedHtml = originalHtml
+            .replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '')
+            .replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '')
+            .replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '');
+        if (cleanedHtml !== originalHtml) {
+            textDiv.innerHTML = cleanedHtml;
+        }
+        // #IG_END
+
         const text = textDiv.innerText;
         const html = textDiv.innerHTML;
-
-        // ========== [사용자 추가] Instagram 태그 숨김 처리 ==========
-        // [IG_POST], [IG_REPLY], [IG_COMMENT] 태그를 DOM에서 제거 (표시 안 되게)
-        let cleanedHtml = html;
-        const instagramPatterns = [
-            /\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi,
-            /\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi,
-            /\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi,
-            /\(Instagram:\s*"[^"]+"\)/gi,
-            /\[Instagram 포스팅\][^\n]*/gi,
-            /\[Instagram 답글\][^\n]*/gi,
-            /\[Instagram 댓글\][^\n]*/gi,
-        ];
-        let hasInstagramTag = false;
-        instagramPatterns.forEach(pattern => {
-            if (pattern.test(cleanedHtml)) {
-                cleanedHtml = cleanedHtml.replace(pattern, '');
-                hasInstagramTag = true;
-            }
-        });
-        if (hasInstagramTag) {
-            // 빈 줄 정리
-            cleanedHtml = cleanedHtml.replace(/(<br\s*\/?>\s*){2,}/gi, '<br>');
-            cleanedHtml = cleanedHtml.replace(/^\s*<br\s*\/?>\s*/gi, '');
-            textDiv.innerHTML = cleanedHtml.trim();
-        }
-        // ========== [사용자 추가 끝] ==========
 
         // [NEW] 은행 로그 패턴 (텍스트에서 제거용)
         const bankLogPatterns = [
@@ -233,7 +247,7 @@ const EXTENSION_NAME = 'ST Phone System';
         // 은행 로그가 포함되어 있으면 해당 부분만 제거
         let hasBankLog = bankLogPatterns.some(p => p.test(text));
         if (hasBankLog) {
-            cleanedHtml = textDiv.innerHTML;  // 인스타그램 처리 후 다시 가져오기
+            let cleanedHtml = html;
             bankLogPatterns.forEach(pattern => {
                 cleanedHtml = cleanedHtml.replace(pattern, '');
             });
@@ -260,12 +274,12 @@ const EXTENSION_NAME = 'ST Phone System';
             /^\s*\[⏰/i,           // [NEW] 타임스탬프 로그 숨기기 (Time Skip)
             /^\s*\[💰/i,          // [NEW] 은행 송금/잔액 로그 숨기기 (시작 부분)
             /^\s*\[📺/i,          // [NEW] Fling 스트리밍 로그 숨기기
-            // ========== [사용자 추가] Instagram 로그 숨김 ==========
+            // #IG_START - Instagram 로그 숨기기 패턴
             /^\s*\[Instagram/i,    // 인스타그램 레거시 로그 숨기기
             /^\s*\[IG_POST\]/i,    // 인스타그램 새 고정 형식 숨기기
             /^\s*\[IG_REPLY\]/i,   // 인스타그램 답글 형식 숨기기
             /^\s*\[IG_COMMENT\]/i, // 인스타그램 댓글 형식 숨기기
-            // ========== [사용자 추가 끝] ==========
+            // #IG_END
         ];
 
         // 패턴 중 하나라도 맞으면 CSS 숨김 클래스 부여
@@ -287,6 +301,51 @@ const EXTENSION_NAME = 'ST Phone System';
                 return;
             }
         }
+        
+        // #IG_START - 유저 메시지가 하나도 없으면 스킵 (그리팅/초기 메시지 방지)
+        const ctx = window.SillyTavern?.getContext?.();
+        if (ctx?.chat) {
+            const userMsgCount = ctx.chat.reduce((count, m) => count + (m?.is_user ? 1 : 0), 0);
+            if (userMsgCount === 0) {
+                return;
+            }
+        }
+        // #IG_END
+
+        const textDiv = node.querySelector('.mes_text');
+        if (!textDiv) return;
+
+        const rawText = textDiv.innerText;
+        
+        // #IG_START - Instagram 레거시 패턴 직접 처리 (📩 패턴과 별개)
+        // [Instagram 답글] 캐릭터가 유저의 댓글에 답글을 남겼습니다: "내용"
+        const legacyReplyMatch = rawText.match(/\[Instagram 답글\]\s*(.+?)(?:가|이)\s*.+?(?:의|에게)\s*(?:댓글에\s*)?답글을?\s*남겼습니다[:\s]*[""]([^""]+)[""]/i);
+        if (legacyReplyMatch) {
+            const charName = legacyReplyMatch[1].trim();
+            const replyContent = legacyReplyMatch[2].trim();
+            const Store = window.STPhone?.Apps?.Store;
+            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.addReplyFromChat === 'function') {
+                    Instagram.addReplyFromChat(charName, replyContent);
+                }
+            }
+        }
+        
+        // [Instagram 포스팅] 캐릭터가 Instagram에 게시물을 올렸습니다: "내용"
+        const legacyPostMatch = rawText.match(/\[Instagram 포스팅\]\s*(.+?)(?:가|이)\s*Instagram에\s*게시물을?\s*올렸습니다[:\s]*[""]([^""]+)[""]/i);
+        if (legacyPostMatch) {
+            const charName = legacyPostMatch[1].trim();
+            const caption = legacyPostMatch[2].trim();
+            const Store = window.STPhone?.Apps?.Store;
+            if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('instagram')) {
+                const Instagram = window.STPhone?.Apps?.Instagram;
+                if (Instagram && typeof Instagram.createPostFromChat === 'function') {
+                    Instagram.createPostFromChat(charName, caption);
+                }
+            }
+        }
+        // #IG_END
 
         // 히든로그인지 확인
         const isHiddenLog = node.classList.contains('st-phone-hidden-log') || node.style.display === 'none';
@@ -310,11 +369,6 @@ const EXTENSION_NAME = 'ST Phone System';
 
         // --- 여기서부터는 기존 로직과 동일 (외부 문자 인식용) ---
         // 예: 유저가 폰 앱을 안 쓰고 채팅창에 직접 "/send (SMS) 안녕" 이라고 쳤을 때를 대비함
-
-        const textDiv = node.querySelector('.mes_text');
-        if (!textDiv) return;
-
-        const rawText = textDiv.innerText;
 
         // (SMS)로 시작하는데 아직 안 숨겨진 게 있다면? -> 유저가 직접 친 것
         // 혹은 다른 확장이 만든 것.

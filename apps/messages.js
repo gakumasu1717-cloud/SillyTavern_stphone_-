@@ -1056,58 +1056,58 @@ function getTranslationStorageKey() {
         localStorage.setItem(key, JSON.stringify(data));
     }
 
-    // ========== [사용자 추가] Instagram/SNS 태그 제거 함수 (메시지 저장 전 정리) ==========
-    function stripInstagramTags(text) {
-        if (!text) return text;
-        let cleaned = text;
-        // [IG_POST]...[/IG_POST] 제거
-        cleaned = cleaned.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '');
-        // [IG_REPLY]...[/IG_REPLY] 제거
-        cleaned = cleaned.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '');
-        // [IG_COMMENT]...[/IG_COMMENT] 제거
-        cleaned = cleaned.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '');
-        // 불완전한 태그 제거 (시작/끝만 있는 경우)
-        cleaned = cleaned.replace(/\[IG_POST\][^\[]*/gi, '');
-        cleaned = cleaned.replace(/[^\]]*\[\/IG_POST\]/gi, '');
-        cleaned = cleaned.replace(/\[IG_REPLY\][^\[]*/gi, '');
-        cleaned = cleaned.replace(/[^\]]*\[\/IG_REPLY\]/gi, '');
-        cleaned = cleaned.replace(/\[IG_COMMENT\][^\[]*/gi, '');
-        cleaned = cleaned.replace(/[^\]]*\[\/IG_COMMENT\]/gi, '');
-        // 괄호 형식 제거
-        cleaned = cleaned.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
-        cleaned = cleaned.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
-        // 레거시 패턴 제거
-        cleaned = cleaned.replace(/\[Instagram 포스팅\][^\n]*/gi, '');
-        cleaned = cleaned.replace(/\[Instagram 답글\][^\n]*/gi, '');
-        cleaned = cleaned.replace(/\[Instagram 댓글\][^\n]*/gi, '');
-        // 연속 공백/줄바꿈 정리
-        cleaned = cleaned.replace(/\n\s*\n/g, '\n').trim();
-        return cleaned;
-    }
-    // ========== [사용자 추가 끝] ==========
-
     function getMessages(contactId) {
         const all = loadAllMessages();
         return all[contactId] || [];
     }
 
+// #IG_START - Instagram/SNS 태그 제거 함수 (메시지 저장 전 정리)
+function stripInstagramTags(text) {
+    if (!text) return text;
+    let cleaned = text;
+    // [IG_POST]...[/IG_POST] 제거
+    cleaned = cleaned.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '');
+    // [IG_REPLY]...[/IG_REPLY] 제거
+    cleaned = cleaned.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '');
+    // [IG_COMMENT]...[/IG_COMMENT] 제거
+    cleaned = cleaned.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '');
+    // 불완전한 태그 제거 (시작/끝만 있는 경우)
+    cleaned = cleaned.replace(/\[IG_POST\][^\[]*/gi, '');
+    cleaned = cleaned.replace(/[^\]]*\[\/IG_POST\]/gi, '');
+    cleaned = cleaned.replace(/\[IG_REPLY\][^\[]*/gi, '');
+    cleaned = cleaned.replace(/[^\]]*\[\/IG_REPLY\]/gi, '');
+    cleaned = cleaned.replace(/\[IG_COMMENT\][^\[]*/gi, '');
+    cleaned = cleaned.replace(/[^\]]*\[\/IG_COMMENT\]/gi, '');
+    // 괄호 형식 제거
+    cleaned = cleaned.replace(/\(Instagram:\s*"[^"]+"\)/gi, '');
+    cleaned = cleaned.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '');
+    // 레거시 패턴 제거
+    cleaned = cleaned.replace(/\[Instagram 포스팅\][^\n]*/gi, '');
+    cleaned = cleaned.replace(/\[Instagram 답글\][^\n]*/gi, '');
+    cleaned = cleaned.replace(/\[Instagram 댓글\][^\n]*/gi, '');
+    // 연속 공백/줄바꿈 정리
+    cleaned = cleaned.replace(/\n\s*\n/g, '\n').trim();
+    return cleaned;
+}
+// #IG_END
+
 function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = false, rpDate = null, replyTo = null) {
     const all = loadAllMessages();
     if (!all[contactId]) all[contactId] = [];
 
+    // #IG_START - Instagram 태그 제거 (저장 전 정리)
+    const cleanedText = stripInstagramTags(text);
+    // #IG_END
+
     const newMsgIndex = all[contactId].length;
     if (addTimestamp) saveTimestamp(contactId, newMsgIndex, Date.now());
-
-    // ========== [사용자 추가] Instagram 태그 제거 (저장 전 정리) ==========
-    const cleanedText = stripInstagramTags(text);
-    // ========== [사용자 추가 끝] ==========
 
     const currentRpDate = window.STPhone?.Apps?.Calendar?.getRpDate();
     const rpDateStr = currentRpDate ? `${currentRpDate.year}년 ${currentRpDate.month}월 ${currentRpDate.day}일 ${currentRpDate.dayOfWeek}` : null;
 
     const msgData = {
         sender,
-        text: cleanedText,  // [사용자 수정] 원본 text 대신 cleanedText 사용
+        text: cleanedText,  // #IG - Instagram 태그 제거된 텍스트 사용
         image: imageUrl,
         timestamp: Date.now(),
         rpDate: rpDate || rpDateStr,
@@ -1343,6 +1343,42 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     }
 
     async function receiveMessageSequential(contactId, text, contactName, myName, replyTo = null) {
+        // #IG_START - 줄 단위 처리 전에 전체 텍스트에서 Instagram 태그 먼저 처리
+        const Instagram = window.STPhone?.Apps?.Instagram;
+        
+        if (Instagram) {
+            // [IG_POST] 태그 처리 (전체 텍스트에서)
+            const igPostMatch = text.match(/\[IG_POST\]([\s\S]*?)\[\/IG_POST\]/i);
+            if (igPostMatch) {
+                const caption = igPostMatch[1].trim();
+                if (typeof Instagram.createPostFromChat === 'function') {
+                    Instagram.createPostFromChat(contactName, caption);
+                }
+                text = text.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+            }
+            
+            // [IG_REPLY] 태그 처리 (전체 텍스트에서)
+            const igReplyMatch = text.match(/\[IG_REPLY\]([\s\S]*?)\[\/IG_REPLY\]/i);
+            if (igReplyMatch) {
+                const replyContent = igReplyMatch[1].trim();
+                if (typeof Instagram.addReplyFromChat === 'function') {
+                    Instagram.addReplyFromChat(contactName, replyContent);
+                }
+                text = text.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+            }
+            
+            // [IG_COMMENT] 태그 처리 (전체 텍스트에서)
+            const igCommentMatch = text.match(/\[IG_COMMENT\]([\s\S]*?)\[\/IG_COMMENT\]/i);
+            if (igCommentMatch) {
+                const commentContent = igCommentMatch[1].trim();
+                if (typeof Instagram.addCommentFromChat === 'function') {
+                    Instagram.addCommentFromChat(contactName, commentContent);
+                }
+                text = text.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
+            }
+        }
+        // #IG_END
+        
         const lines = text.split('\n').filter(l => l.trim());
         if (lines.length === 0) return;
 
@@ -1359,6 +1395,82 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         for (let i = 0; i < lines.length; i++) {
             let lineText = lines[i].trim();
             if (!lineText) continue;
+
+            // #IG_START - Instagram 포스팅/답글/댓글 패턴 감지 및 제거 (줄 단위 - 하위 호환)
+            if (window.STPhone.Apps?.Instagram) {
+                const InstagramLine = window.STPhone.Apps.Instagram;
+                
+                // [IG_POST] 태그 및 불완전한 조각 제거
+                if (lineText.includes('[IG_POST]') || lineText.includes('[/IG_POST]')) {
+                    lineText = lineText.replace(/\[IG_POST\][\s\S]*?\[\/IG_POST\]/gi, '').trim();
+                    lineText = lineText.replace(/\[IG_POST\][^\[]*/gi, '').trim();
+                    lineText = lineText.replace(/[^\]]*\[\/IG_POST\]/gi, '').trim();
+                }
+                
+                // [IG_REPLY] 태그 및 불완전한 조각 제거
+                if (lineText.includes('[IG_REPLY]') || lineText.includes('[/IG_REPLY]')) {
+                    lineText = lineText.replace(/\[IG_REPLY\][\s\S]*?\[\/IG_REPLY\]/gi, '').trim();
+                    lineText = lineText.replace(/\[IG_REPLY\][^\[]*/gi, '').trim();
+                    lineText = lineText.replace(/[^\]]*\[\/IG_REPLY\]/gi, '').trim();
+                }
+                
+                // [IG_COMMENT] 태그 및 불완전한 조각 제거
+                if (lineText.includes('[IG_COMMENT]') || lineText.includes('[/IG_COMMENT]')) {
+                    lineText = lineText.replace(/\[IG_COMMENT\][\s\S]*?\[\/IG_COMMENT\]/gi, '').trim();
+                    lineText = lineText.replace(/\[IG_COMMENT\][^\[]*/gi, '').trim();
+                    lineText = lineText.replace(/[^\]]*\[\/IG_COMMENT\]/gi, '').trim();
+                }
+                
+                // 빈 줄이면 스킵
+                if (!lineText) continue;
+                
+                // 괄호 형식: (Instagram: "캡션")
+                if (lineText.includes('(Instagram:')) {
+                    const postMatch = lineText.match(/\(Instagram:\s*"([^"]+)"\)/i);
+                    if (postMatch && typeof InstagramLine.createPostFromChat === 'function') {
+                        InstagramLine.createPostFromChat(contactName, postMatch[1]);
+                    }
+                    lineText = lineText.replace(/\(Instagram:\s*"[^"]+"\)/gi, '').trim();
+                }
+                
+                // 새 패턴: (Instagram Reply: "답글")
+                if (lineText.includes('(Instagram Reply:')) {
+                    const replyMatch = lineText.match(/\(Instagram Reply:\s*"([^"]+)"\)/i);
+                    if (replyMatch && typeof InstagramLine.addReplyFromChat === 'function') {
+                        InstagramLine.addReplyFromChat(contactName, replyMatch[1]);
+                    }
+                    lineText = lineText.replace(/\(Instagram Reply:\s*"[^"]+"\)/gi, '').trim();
+                }
+                
+                // 기존 패턴들도 유지 (하위 호환)
+                if (lineText.includes('[Instagram 포스팅]')) {
+                    const postMatch = lineText.match(/\[Instagram 포스팅\][^"]*"([^"]+)"/i);
+                    if (postMatch && typeof InstagramLine.createPostFromChat === 'function') {
+                        InstagramLine.createPostFromChat(contactName, postMatch[1]);
+                    }
+                    lineText = lineText.replace(/\[Instagram 포스팅\][^\n]*/gi, '').trim();
+                }
+                
+                if (lineText.includes('[Instagram 답글]')) {
+                    const replyMatch = lineText.match(/\[Instagram 답글\][^"]*"([^"]+)"/i);
+                    if (replyMatch && typeof InstagramLine.addReplyFromChat === 'function') {
+                        InstagramLine.addReplyFromChat(contactName, replyMatch[1]);
+                    }
+                    lineText = lineText.replace(/\[Instagram 답글\][^\n]*/gi, '').trim();
+                }
+                
+                // 댓글 패턴도 처리 (제거 + Instagram 호출)
+                if (lineText.includes('[Instagram 댓글]')) {
+                    const commentMatch = lineText.match(/\[Instagram 댓글\][^"]*"([^"]+)"/i);
+                    if (commentMatch && typeof InstagramLine.addCommentFromChat === 'function') {
+                        InstagramLine.addCommentFromChat(contactName, commentMatch[1]);
+                    }
+                    lineText = lineText.replace(/\[Instagram 댓글\][^\n]*/gi, '').trim();
+                }
+                
+                if (!lineText) continue;
+            }
+            // #IG_END
 
             const calendarInstalled = window.STPhone?.Apps?.Store?.isInstalled?.('calendar');
             const rpDateInfo = calendarInstalled ? extractRpDate(lineText) : null;
@@ -1458,7 +1570,10 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     }
 
     async function receiveMessage(contactId, text, imageUrl = null, replyTo = null) {
-        const newIdx = addMessage(contactId, 'them', text, imageUrl, false, null, replyTo);
+        // #IG_START - Instagram 태그 제거 (저장 + 렌더링 모두 정리된 텍스트 사용)
+        const cleanedText = stripInstagramTags(text);
+        // #IG_END
+        const newIdx = addMessage(contactId, 'them', cleanedText, imageUrl, false, null, replyTo);
 
         const isPhoneActive = $('#st-phone-container').hasClass('active');
         const isViewingThisChat = (currentChatType === 'dm' && currentContactId === contactId);
@@ -1473,8 +1588,8 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         let translatedText = null;
 
-        if (text && settings.translateEnabled) {
-            translatedText = await translateText(text);
+        if (cleanedText && settings.translateEnabled) {  // #IG - cleanedText 사용
+            translatedText = await translateText(cleanedText);
             if (translatedText) {
                 saveTranslation(contactId, newIdx, translatedText);
             }
@@ -1482,7 +1597,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
 
         // 채팅방 보고 있으면 말풍선 추가
         if (isPhoneActive && isViewingThisChat) {
-            appendBubble('them', text, imageUrl, newIdx, translatedText, replyTo);
+            appendBubble('them', cleanedText, imageUrl, newIdx, translatedText, replyTo);  // #IG - cleanedText 사용
         }
 
         // 채팅방 안 보고 있을 때만 알림
@@ -1495,12 +1610,12 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             let preview;
             if (imageUrl) {
                 preview = '사진';
-            } else if (/\[💰.*송금.*:/.test(text)) {
+            } else if (/\[💰.*송금.*:/.test(cleanedText)) {  // #IG - cleanedText 사용
                 preview = '💰 송금 알림';
-            } else if (/\[💰.*출금.*:/.test(text)) {
+            } else if (/\[💰.*출금.*:/.test(cleanedText)) {  // #IG - cleanedText 사용
                 preview = '💰 결제 알림';
             } else {
-                preview = (translatedText || text)?.substring(0, 50) || '새 메시지';
+                preview = (translatedText || cleanedText)?.substring(0, 50) || '새 메시지';  // #IG - cleanedText 사용
             }
             showNotification(contactName, preview, contactAvatar, contactId, 'dm');
         }
@@ -1846,6 +1961,10 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         let lastRenderedRpDate = null;
 
         msgs.forEach((m, index) => {
+            // #IG_START - 저장된 메시지에 Instagram 태그가 남아있으면 제거
+            const displayText = m.text ? stripInstagramTags(m.text) : '';
+            // #IG_END
+
             const customTsForIndex = customTimestamps.filter(t => t.beforeMsgIndex === index);
             customTsForIndex.forEach(ts => {
                 msgsHtml += getCustomTimestampHtml(ts.text, ts.id);
@@ -1894,17 +2013,17 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                 const imgAttr = `data-action="msg-option" data-idx="${index}" data-line-idx="0" data-sender="${side}" class="st-msg-bubble ${side} image-bubble clickable" style="cursor:pointer;" title="옵션 보기"`;
                 msgsHtml += `<div ${imgAttr}><img class="st-msg-image" src="${m.image}">${excludedTag}</div>`;
 
-                if (!m.text && settings.readReceiptEnabled && side === 'me' && m.read === false) {
+                if (!displayText && settings.readReceiptEnabled && side === 'me' && m.read === false) {  // #IG - displayText 사용
                      msgsHtml += `<span class="st-msg-unread-marker" style="bottom: 10px;">1</span>`;
                 }
             }
 
-            if (m.text) {
+            if (displayText) {  // #IG - displayText 사용
                 if (isDeleted) {
                     const lineAttr = `data-action="msg-option" data-idx="${index}" data-line-idx="0" data-sender="${side}" class="st-msg-bubble ${side}${deletedClass} clickable" style="cursor:pointer;" title="옵션 보기"`;
-                    msgsHtml += `<div ${lineAttr}>${m.text}${excludedTag}</div>`;
+                    msgsHtml += `<div ${lineAttr}>${displayText}${excludedTag}</div>`;  // #IG - displayText 사용
                 } else {
-                    const lines = m.text.split('\n');
+                    const lines = displayText.split('\n');  // #IG - displayText 사용
                     const translatedLines = savedTranslation ? savedTranslation.split('\n') : [];
                     let lineIdx = 0;
 
@@ -2155,6 +2274,10 @@ $('#st-chat-cam').off('click').on('click', () => {
         let msgsHtml = '';
 
         msgs.forEach((m, index) => {
+            // #IG_START - 저장된 메시지에 Instagram 태그가 남아있으면 제거
+            const displayTextGroup = m.text ? stripInstagramTags(m.text) : '';
+            // #IG_END
+
             // 커스텀 타임스탬프 표시 (해당 메시지 인덱스 전에 위치한 것들)
             const customTsForIndex = customTimestamps.filter(t => t.beforeMsgIndex === index);
             customTsForIndex.forEach(ts => {
@@ -2169,8 +2292,8 @@ $('#st-chat-cam').off('click').on('click', () => {
                 if (m.image) {
                     msgsHtml += `<div class="st-msg-bubble me"><img class="st-msg-image" src="${m.image}"></div>`;
                 }
-                if (m.text) {
-                    msgsHtml += `<div class="st-msg-bubble me">${m.text}</div>`;
+                if (displayTextGroup) {  // #IG - displayTextGroup 사용
+                    msgsHtml += `<div class="st-msg-bubble me">${displayTextGroup}</div>`;  // #IG - displayTextGroup 사용
                 }
                 msgsHtml += `</div>`;
             } else {
@@ -2189,8 +2312,8 @@ $('#st-chat-cam').off('click').on('click', () => {
                 if (m.image) {
                     msgsHtml += `<div class="st-msg-bubble them"><img class="st-msg-image" src="${m.image}"></div>`;
                 }
-                if (m.text) {
-                    msgsHtml += `<div class="st-msg-bubble them">${m.text}</div>`;
+                if (displayTextGroup) {  // #IG - displayTextGroup 사용
+                    msgsHtml += `<div class="st-msg-bubble them">${displayTextGroup}</div>`;  // #IG - displayTextGroup 사용
                 }
                 msgsHtml += `</div>`;
             }
@@ -2344,6 +2467,12 @@ $('#st-chat-cam').on('click', () => {
     }
 
     function appendBubble(sender, text, imageUrl, msgIndex, translatedText = null, replyTo = null) {
+        // #IG_START - 안전장치: Instagram 태그가 혹시 남아있으면 제거
+        if (text) {
+            text = stripInstagramTags(text);
+        }
+        // #IG_END
+        
         const side = sender === 'me' ? 'me' : 'them';
         const $container = $('#st-chat-messages');
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
@@ -2419,6 +2548,12 @@ $('#st-chat-cam').on('click', () => {
 
 
     function appendGroupBubble(senderId, senderName, text, imageUrl) {
+        // #IG_START - 안전장치: Instagram 태그가 혹시 남아있으면 제거
+        if (text) {
+            text = stripInstagramTags(text);
+        }
+        // #IG_END
+        
         const myName = getUserName();
         const isMe = (senderName === myName || senderId === 'me');
         const $container = $('#st-chat-messages');

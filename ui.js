@@ -262,11 +262,11 @@ window.STPhone.UI = (function() {
             case 'streaming':
                 Apps.Streaming?.open();
                 break;
-            // ========== [사용자 추가] Instagram case ==========
+            // #IG_START - Instagram 앱 열기
             case 'instagram':
                 Apps.Instagram?.open();
                 break;
-            // ========== [사용자 추가 끝] ==========
+            // #IG_END
             default:
                 toastr.warning('앱을 찾을 수 없습니다.');
         }
