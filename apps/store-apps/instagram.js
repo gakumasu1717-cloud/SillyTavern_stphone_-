@@ -12,6 +12,7 @@ window.STPhone.Apps.Instagram = (function() {
     const STORAGE_KEY = 'stphone_instagram_posts';
     let posts = [];
     let isGeneratingPost = false;
+    let isProcessingComments = false;  // 댓글 처리 중 플래그 (포스팅과 분리)
     
     // 무한스크롤 설정
     const POSTS_PER_PAGE = 5;
@@ -1429,14 +1430,19 @@ Example output:
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         
         if (settings.instagramPostEnabled === false) return;
-        if (isGeneratingPost) return;
+        
+        // 댓글 처리 중이면 스킵 (포스팅과 별도로 체크)
+        if (isProcessingComments) {
+            console.log('[Instagram] 댓글 처리 중, 스킵');
+            return;
+        }
 
         // 연락처에서 성격 정보 가져오기
         const personality = getCharacterPersonality(charName);
         
-        console.log('[Instagram] 통합 SNS 활동 처리:', { charName });
+        console.log('[Instagram] 통합 SNS 활동 처리:', { charName, isGeneratingPost });
 
-        isGeneratingPost = true;
+        isProcessingComments = true;  // 댓글 처리 시작
         
         try {
             // 통합 AI 호출 (포스팅 결정 + 댓글 한 번에)
@@ -1444,7 +1450,7 @@ Example output:
             
             let activityCount = 0;
             
-            // 1. 댓글/답글 처리 (포스팅 확률과 무관하게 항상 처리)
+            // 1. 댓글/답글 처리 (포스팅과 별도로 항상 처리)
             if (result.commentReplies && result.commentReplies.length > 0 && result.pendingComments.length > 0) {
                 loadPosts();
                 const user = getUserInfo();
@@ -1486,27 +1492,32 @@ Example output:
                 }
             }
             
-            // 2. 포스팅 처리 (확률 체크 적용)
-            const chance = settings.instagramPostChance || 15;
-            const roll = Math.random() * 100;
-            const shouldAttemptPost = roll <= chance;
-            
-            // 중복 캡션 체크
-            const captionKey = result.newPost.caption?.trim().toLowerCase();
-            const isDuplicate = captionKey && recentPostCaptions.has(captionKey);
-            
-            if (isDuplicate) {
-                console.log('[Instagram] 중복 캡션 감지, 포스팅 스킵:', captionKey);
-            }
-            
-            if (shouldAttemptPost && result.newPost.shouldPost && !isDuplicate) {
-                console.log('[Instagram] 프로액티브 포스팅 생성 중...');
+            // 2. 포스팅 처리 (확률 체크 적용, isGeneratingPost로 중복 방지)
+            if (isGeneratingPost) {
+                console.log('[Instagram] 포스팅 생성 중, 포스팅만 스킵 (댓글은 처리됨)');
+            } else {
+                const chance = settings.instagramPostChance || 15;
+                const roll = Math.random() * 100;
+                const shouldAttemptPost = roll <= chance;
                 
-                // 중복 방지용 캡션 저장
-                if (captionKey) {
-                    recentPostCaptions.add(captionKey);
-                    setTimeout(() => recentPostCaptions.delete(captionKey), 60000);
+                // 중복 캡션 체크
+                const captionKey = result.newPost.caption?.trim().toLowerCase();
+                const isDuplicate = captionKey && recentPostCaptions.has(captionKey);
+                
+                if (isDuplicate) {
+                    console.log('[Instagram] 중복 캡션 감지, 포스팅 스킵:', captionKey);
                 }
+                
+                if (shouldAttemptPost && result.newPost.shouldPost && !isDuplicate) {
+                    isGeneratingPost = true;  // 포스팅 시작
+                    console.log('[Instagram] 프로액티브 포스팅 생성 중...');
+                    
+                    try {
+                    // 중복 방지용 캡션 저장
+                    if (captionKey) {
+                        recentPostCaptions.add(captionKey);
+                        setTimeout(() => recentPostCaptions.delete(captionKey), 60000);
+                    }
 
                 // 이미지 생성 (imagePrompt가 있을 때만)
                 let imageUrl = null;
@@ -1551,7 +1562,11 @@ Example output:
                 if (window.toastr) {
                     toastr.info(`📸 ${charName}님이 Instagram에 새 게시물을 올렸습니다`, 'Instagram');
                 }
-            }
+                    } finally {
+                        isGeneratingPost = false;  // 포스팅 완료
+                    }
+                }  // shouldAttemptPost 블록 닫기
+            }  // isGeneratingPost 체크 블록 닫기
             
             // 3. UI 새로고침 (활동이 있었으면)
             if (activityCount > 0 && $('.st-insta-app').length) {
@@ -1562,7 +1577,7 @@ Example output:
             }
             
         } finally {
-            isGeneratingPost = false;
+            isProcessingComments = false;  // 댓글 처리 완료
         }
     }
 
